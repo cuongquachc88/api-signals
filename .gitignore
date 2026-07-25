@@ -1,0 +1,58 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Xcode
+build/
+DerivedData/
+*.pbxuser
+!default.pbxuser
+*.mode1v3
+!default.mode1v3
+*.mode2v3
+!default.mode2v3
+*.perspectivev3
+!default.perspectivev3
+xcuserdata/
+*.moved-aside
+*.xccheckout
+*.xcscmblueprint
+*.xcuserstate
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# Swift Package Manager
+.build/
+*.xcodeproj
+.swiftpm/
+# Keep Package.resolved for reproducible builds
+!macOS/Package.resolved
+
+# AppCode
+.idea/
+
+# Windows
+*.user
+*.userosscache
+*.sln.docstates
+bin/
+obj/
+.vs/
+
+# .NET
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# Secrets
+*.env
+*.pem
+*.p12
+*.pfx
+
+# Temporary
+*.tmp
+*.log
