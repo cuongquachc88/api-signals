@@ -6,50 +6,79 @@ struct BodyEditorView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Picker("", selection: Binding(
-                get: { viewModel.selectedBodyTab },
-                set: { viewModel.setBodyTab($0) }
-            )) {
-                ForEach(RequestViewModel.BodyTab.allCases, id: \.self) { tab in
-                    Text(tab.rawValue).tag(tab)
+            // Type picker header
+            HStack(spacing: DS.Spacing.sm) {
+                Image(systemName: "doc.text")
+                    .font(.system(size: 12))
+                    .foregroundStyle(Color.dsTextSec)
+                Spacer()
+                Picker("", selection: Binding(
+                    get: { viewModel.selectedBodyTab },
+                    set: { viewModel.setBodyTab($0) }
+                )) {
+                    ForEach(RequestViewModel.BodyTab.allCases, id: \.self) { tab in
+                        Text(tab.rawValue).tag(tab)
+                    }
                 }
+                .pickerStyle(.segmented)
+                .frame(width: 340)
+                .controlSize(.small)
             }
-            .pickerStyle(.segmented)
-            .padding()
+            .padding(.horizontal, DS.Spacing.lg)
+            .padding(.vertical, DS.Spacing.sm)
+            .background(Color.dsSurf)
+
+            DSDivider()
 
             bodyContent
-                .padding()
         }
+        .background(Color.dsBg)
     }
 
     @ViewBuilder
     private var bodyContent: some View {
         switch viewModel.request.body {
         case .none:
-            Text("No body")
-                .foregroundStyle(.secondary)
+            noneView
+
         case .raw(let text, let mimeType):
-            VStack(alignment: .leading) {
-                TextField("MIME Type (e.g. text/plain)", text: Binding(
-                    get: { mimeType },
-                    set: { viewModel.request.body = .raw(text: text, mimeType: $0); viewModel.updateRequest() }
-                ))
-                .textFieldStyle(.roundedBorder)
-                CodeEditor(text: Binding(
+            VStack(spacing: 0) {
+                HStack(spacing: DS.Spacing.sm) {
+                    Text("MIME Type")
+                        .font(DS.Font.label)
+                        .foregroundStyle(Color.dsTextSec)
+                    TextField("text/plain", text: Binding(
+                        get: { mimeType },
+                        set: { viewModel.request.body = .raw(text: text, mimeType: $0); viewModel.updateRequest() }
+                    ))
+                    .textFieldStyle(.plain)
+                    .font(DS.Font.bodyMono)
+                    .foregroundStyle(Color.dsTextPrim)
+                }
+                .padding(.horizontal, DS.Spacing.lg)
+                .padding(.vertical, DS.Spacing.sm)
+                .background(Color.dsSurf)
+
+                DSDivider()
+
+                CodeEditorDS(text: Binding(
                     get: { text },
                     set: { viewModel.request.body = .raw(text: $0, mimeType: mimeType); viewModel.updateRequest() }
                 ))
             }
+
         case .json(let text):
-            CodeEditor(text: Binding(
+            CodeEditorDS(text: Binding(
                 get: { text },
                 set: { viewModel.request.body = .json($0); viewModel.updateRequest() }
-            ))
+            ), hint: "{ }")
+
         case .formData(let fields):
-            FormDataEditor(fields: Binding(
+            FormDataEditorDS(fields: Binding(
                 get: { fields },
                 set: { viewModel.request.body = .formData($0); viewModel.updateRequest() }
             ))
+
         case .urlEncoded(let params):
             KeyValueEditor(
                 items: Binding(
@@ -57,76 +86,221 @@ struct BodyEditorView: View {
                     set: { viewModel.request.body = .urlEncoded($0); viewModel.updateRequest() }
                 ),
                 keyPlaceholder: "Key",
-                valuePlaceholder: "Value"
+                valuePlaceholder: "Value",
+                emptyMessage: "No form fields"
             )
+
         case .graphql(let query, let variables):
-            VStack(alignment: .leading) {
-                Text("Query")
-                    .font(.caption)
-                CodeEditor(text: Binding(
+            VStack(spacing: 0) {
+                HStack(spacing: DS.Spacing.sm) {
+                    Text("Query")
+                        .font(DS.Font.labelSm)
+                        .foregroundStyle(Color.dsTextSec)
+                        .tracking(0.3)
+                    Spacer()
+                }
+                .padding(.horizontal, DS.Spacing.lg)
+                .padding(.vertical, DS.Spacing.xs)
+                .background(Color.dsSurf)
+
+                DSDivider()
+
+                CodeEditorDS(text: Binding(
                     get: { query },
                     set: { viewModel.request.body = .graphql(query: $0, variables: variables); viewModel.updateRequest() }
-                ))
-                Text("Variables")
-                    .font(.caption)
-                CodeEditor(text: Binding(
+                ), hint: "{ }")
+
+                DSDivider()
+
+                HStack(spacing: DS.Spacing.sm) {
+                    Text("Variables")
+                        .font(DS.Font.labelSm)
+                        .foregroundStyle(Color.dsTextSec)
+                        .tracking(0.3)
+                    Spacer()
+                }
+                .padding(.horizontal, DS.Spacing.lg)
+                .padding(.vertical, DS.Spacing.xs)
+                .background(Color.dsSurf)
+
+                DSDivider()
+
+                CodeEditorDS(text: Binding(
                     get: { variables },
                     set: { viewModel.request.body = .graphql(query: query, variables: $0); viewModel.updateRequest() }
-                ))
+                ), hint: "{ }")
             }
+
         case .binary(let data):
-            Text("Binary data: \(data.count) bytes")
-                .foregroundStyle(.secondary)
+            VStack(spacing: DS.Spacing.sm) {
+                Spacer()
+                Image(systemName: "doc.zipper")
+                    .font(.system(size: 28))
+                    .foregroundStyle(Color.dsTextTertiary)
+                Text("Binary Data")
+                    .font(DS.Font.title)
+                    .foregroundStyle(Color.dsTextPrim)
+                Text("\(data.count) bytes")
+                    .font(DS.Font.bodyMono)
+                    .foregroundStyle(Color.dsTextSec)
+                Spacer()
+            }
+            .frame(maxWidth: .infinity)
         }
+    }
+
+    private var noneView: some View {
+        VStack(spacing: DS.Spacing.sm) {
+            Spacer()
+            Image(systemName: "doc")
+                .font(.system(size: 28))
+                .foregroundStyle(Color.dsTextTertiary)
+            Text("No Body")
+                .font(DS.Font.title)
+                .foregroundStyle(Color.dsTextPrim)
+            Text("Select a body type above")
+                .font(DS.Font.body)
+                .foregroundStyle(Color.dsTextSec)
+            Spacer()
+        }
+        .frame(maxWidth: .infinity)
     }
 }
 
-struct FormDataEditor: View {
+// MARK: - Code Editor (redesigned)
+
+struct CodeEditorDS: View {
+    @Binding var text: String
+    var hint: String = ""
+
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            if text.isEmpty && !hint.isEmpty {
+                Text(hint)
+                    .font(DS.Font.bodyMono)
+                    .foregroundStyle(Color.dsTextTertiary)
+                    .padding(DS.Spacing.md)
+                    .allowsHitTesting(false)
+            }
+            TextEditor(text: $text)
+                .font(DS.Font.bodyMono)
+                .foregroundStyle(Color.dsTextPrim)
+                .scrollContentBackground(.hidden)
+                .frame(minHeight: 120)
+                .padding(DS.Spacing.sm)
+        }
+        .background(Color.dsBg)
+    }
+}
+
+// Backward compat alias
+typealias CodeEditor = CodeEditorDS
+
+// MARK: - Form Data Editor (redesigned)
+
+struct FormDataEditorDS: View {
     @Binding var fields: [FormField]
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack {
+            // Toolbar
+            HStack(spacing: DS.Spacing.sm) {
+                Text("\(fields.filter(\.isEnabled).count) active fields")
+                    .font(DS.Font.caption)
+                    .foregroundStyle(Color.dsTextTertiary)
                 Spacer()
-                Button("Import CSV") { importCSV() }
-                    .buttonStyle(.borderless)
-                    .font(.caption)
-                Button("Export CSV") { exportCSV() }
-                    .buttonStyle(.borderless)
-                    .font(.caption)
+                Button { importCSV() } label: {
+                    Label("Import CSV", systemImage: "arrow.down.doc")
+                        .font(DS.Font.caption)
+                        .foregroundStyle(Color.dsTextSec)
+                }
+                .buttonStyle(.plain)
+
+                Button { exportCSV() } label: {
+                    Label("Export CSV", systemImage: "arrow.up.doc")
+                        .font(DS.Font.caption)
+                        .foregroundStyle(Color.dsTextSec)
+                }
+                .buttonStyle(.plain)
+                .disabled(fields.isEmpty)
             }
-            .padding(.horizontal)
-            .padding(.vertical, 4)
+            .padding(.horizontal, DS.Spacing.lg)
+            .padding(.vertical, DS.Spacing.sm)
+            .background(Color.dsSurf)
 
-            List {
-                ForEach($fields) { $field in
-                    HStack(spacing: 8) {
-                        Toggle("", isOn: $field.isEnabled)
-                            .toggleStyle(.checkbox)
-                            .labelsHidden()
+            DSDivider()
 
-                        TextField("Key", text: $field.key)
-                            .textFieldStyle(.roundedBorder)
-
-                        TextField("Value", text: $field.value)
-                            .textFieldStyle(.roundedBorder)
-
-                        Picker("", selection: $field.type) {
-                            Text("Text").tag(FormField.FieldType.text)
-                            Text("File").tag(FormField.FieldType.file)
-                        }
-                        .frame(width: 80)
-
-                        Button("Remove") {
-                            fields.removeAll { $0.id == field.id }
-                        }
-                        .buttonStyle(.borderless)
+            if fields.isEmpty {
+                VStack(spacing: DS.Spacing.sm) {
+                    Spacer()
+                    Image(systemName: "tablecells")
+                        .font(.system(size: 24))
+                        .foregroundStyle(Color.dsTextTertiary)
+                    Text("No form fields")
+                        .font(DS.Font.body)
+                        .foregroundStyle(Color.dsTextSec)
+                    Button {
+                        fields.append(FormField(key: "", value: ""))
+                    } label: {
+                        Label("Add Field", systemImage: "plus.circle")
+                            .foregroundStyle(Color.dsAcc)
                     }
+                    .buttonStyle(.plain)
+                    Spacer()
                 }
+                .frame(maxWidth: .infinity)
+                .background(Color.dsBg)
+            } else {
+                List {
+                    ForEach($fields) { $field in
+                        HStack(spacing: DS.Spacing.sm) {
+                            Toggle("", isOn: $field.isEnabled)
+                                .toggleStyle(.checkbox)
+                                .labelsHidden()
 
-                Button("Add Field") {
-                    fields.append(FormField(key: "", value: ""))
+                            TextField("Key", text: $field.key)
+                                .textFieldStyle(.plain)
+                                .font(DS.Font.bodyMono)
+                                .foregroundStyle(Color.dsTextPrim)
+                                .frame(maxWidth: .infinity)
+
+                            TextField("Value", text: $field.value)
+                                .textFieldStyle(.plain)
+                                .font(DS.Font.bodyMono)
+                                .foregroundStyle(Color.dsAcc)
+                                .frame(maxWidth: .infinity)
+
+                            Picker("", selection: $field.type) {
+                                Image(systemName: "text.alignleft").tag(FormField.FieldType.text)
+                                Image(systemName: "doc.fill").tag(FormField.FieldType.file)
+                            }
+                            .pickerStyle(.segmented)
+                            .frame(width: 60)
+                            .controlSize(.small)
+
+                            Button {
+                                fields.removeAll { $0.id == field.id }
+                            } label: {
+                                Image(systemName: "minus.circle.fill")
+                                    .foregroundStyle(Color.dsError)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        .padding(.vertical, 3)
+                        .opacity(field.isEnabled ? 1 : 0.5)
+                    }
+
+                    Button {
+                        fields.append(FormField(key: "", value: ""))
+                    } label: {
+                        Label("Add Field", systemImage: "plus")
+                            .font(DS.Font.body)
+                            .foregroundStyle(Color.dsAcc)
+                    }
+                    .buttonStyle(.plain)
                 }
+                .listStyle(.plain)
+                .background(Color.dsBg)
             }
         }
     }
@@ -165,13 +339,5 @@ struct FormDataEditor: View {
     }
 }
 
-struct CodeEditor: View {
-    @Binding var text: String
-
-    var body: some View {
-        TextEditor(text: $text)
-            .font(.system(.body, design: .monospaced))
-            .lineSpacing(4)
-            .frame(minHeight: 100)
-    }
-}
+// Backward compat
+typealias FormDataEditor = FormDataEditorDS

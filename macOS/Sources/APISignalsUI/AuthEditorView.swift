@@ -3,69 +3,93 @@ import AppKit
 import APISignalsCore
 import APISignalsNetwork
 
+// MARK: - Auth Editor
+
 struct AuthEditorView: View {
     @ObservedObject var viewModel: RequestViewModel
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Picker("Type", selection: authTypeBinding) {
-                ForEach(AuthType.allCases, id: \.self) { type in
-                    Text(type.rawValue).tag(type)
-                }
-            }
-            .pickerStyle(.menu)
-
-            switch viewModel.request.auth {
-            case .none:
-                Text("No authentication")
-                    .foregroundStyle(.secondary)
-        case .bearer(let token):
-            TextField("Token", text: Binding(
-                get: { token },
-                set: { viewModel.request.auth = .bearer(token: $0); viewModel.updateRequest() }
-            ))
-            .textFieldStyle(.roundedBorder)
-        case .oauth1(let config):
-            OAuth1Editor(config: config, onUpdate: { newConfig in
-                viewModel.request.auth = .oauth1(newConfig)
-                viewModel.updateRequest()
-            })
-        case .oauth2(let config):
-            OAuth2Editor(config: config, onUpdate: { newConfig in
-                viewModel.request.auth = .oauth2(newConfig)
-                viewModel.updateRequest()
-            })
-        case .basic(let username, let password):
-                HStack {
-                    TextField("Username", text: Binding(
-                        get: { username },
-                        set: { viewModel.request.auth = .basic(username: $0, password: password); viewModel.updateRequest() }
-                    ))
-                    .textFieldStyle(.roundedBorder)
-
-                    SecureField("Password", text: Binding(
-                        get: { password },
-                        set: { viewModel.request.auth = .basic(username: username, password: $0); viewModel.updateRequest() }
-                    ))
-                    .textFieldStyle(.roundedBorder)
-                }
-            case .apiKey(let key, let value, let location):
-                VStack {
-                    HStack {
-                        TextField("Key", text: Binding(
-                            get: { key },
-                            set: { viewModel.request.auth = .apiKey(key: $0, value: value, location: location); viewModel.updateRequest() }
-                        ))
-                        .textFieldStyle(.roundedBorder)
-
-                        TextField("Value", text: Binding(
-                            get: { value },
-                            set: { viewModel.request.auth = .apiKey(key: key, value: $0, location: location); viewModel.updateRequest() }
-                        ))
-                        .textFieldStyle(.roundedBorder)
+        VStack(spacing: 0) {
+            // Type picker header
+            HStack(spacing: DS.Spacing.sm) {
+                Image(systemName: "lock.shield")
+                    .font(.system(size: 12))
+                    .foregroundStyle(Color.dsTextSec)
+                Text("Auth Type")
+                    .font(DS.Font.label)
+                    .foregroundStyle(Color.dsTextSec)
+                Spacer()
+                Picker("", selection: authTypeBinding) {
+                    ForEach(AuthType.allCases, id: \.self) { type in
+                        Text(type.rawValue).tag(type)
                     }
+                }
+                .pickerStyle(.menu)
+                .frame(width: 160)
+            }
+            .padding(.horizontal, DS.Spacing.lg)
+            .padding(.vertical, DS.Spacing.sm)
+            .background(Color.dsSurf)
 
-                    Picker("Add to", selection: Binding(
+            DSDivider()
+
+            // Auth content
+            ScrollView {
+                VStack(alignment: .leading, spacing: DS.Spacing.lg) {
+                    authContent
+                }
+                .padding(DS.Spacing.lg)
+            }
+            .background(Color.dsBg)
+        }
+    }
+
+    @ViewBuilder
+    private var authContent: some View {
+        switch viewModel.request.auth {
+        case .none:
+            noneView
+
+        case .bearer(let token):
+            authSection("Bearer Token", icon: "key.horizontal") {
+                authField("Token", placeholder: "Enter token…", isSecret: true, value: Binding(
+                    get: { token },
+                    set: { viewModel.request.auth = .bearer(token: $0); viewModel.updateRequest() }
+                ))
+            } hint: {
+                "Token will be sent as: Authorization: Bearer <token>"
+            }
+
+        case .basic(let username, let password):
+            authSection("Basic Authentication", icon: "person.badge.key") {
+                authField("Username", placeholder: "username", value: Binding(
+                    get: { username },
+                    set: { viewModel.request.auth = .basic(username: $0, password: password); viewModel.updateRequest() }
+                ))
+                authField("Password", placeholder: "password", isSecret: true, value: Binding(
+                    get: { password },
+                    set: { viewModel.request.auth = .basic(username: username, password: $0); viewModel.updateRequest() }
+                ))
+            } hint: {
+                "Credentials are Base64-encoded and sent as: Authorization: Basic <encoded>"
+            }
+
+        case .apiKey(let key, let value, let location):
+            authSection("API Key", icon: "key") {
+                authField("Key", placeholder: "X-API-Key", value: Binding(
+                    get: { key },
+                    set: { viewModel.request.auth = .apiKey(key: $0, value: value, location: location); viewModel.updateRequest() }
+                ))
+                authField("Value", placeholder: "your-api-key", isSecret: true, value: Binding(
+                    get: { value },
+                    set: { viewModel.request.auth = .apiKey(key: key, value: $0, location: location); viewModel.updateRequest() }
+                ))
+                HStack(spacing: DS.Spacing.sm) {
+                    Text("Add to")
+                        .font(DS.Font.body)
+                        .foregroundStyle(Color.dsTextSec)
+                        .frame(width: 100, alignment: .leading)
+                    Picker("", selection: Binding(
                         get: { location },
                         set: { viewModel.request.auth = .apiKey(key: key, value: value, location: $0); viewModel.updateRequest() }
                     )) {
@@ -73,52 +97,148 @@ struct AuthEditorView: View {
                         Text("Query Params").tag(APIKeyLocation.query)
                     }
                     .pickerStyle(.segmented)
+                    .frame(maxWidth: 200)
                 }
-            case .digest(let username, let password):
-                HStack {
-                    TextField("Username", text: Binding(
-                        get: { username },
-                        set: { viewModel.request.auth = .digest(username: $0, password: password); viewModel.updateRequest() }
-                    ))
-                    .textFieldStyle(.roundedBorder)
+                .padding(.horizontal, DS.Spacing.md)
+                .padding(.vertical, DS.Spacing.sm)
+            }
 
-                    SecureField("Password", text: Binding(
-                        get: { password },
-                        set: { viewModel.request.auth = .digest(username: username, password: $0); viewModel.updateRequest() }
-                    ))
-                    .textFieldStyle(.roundedBorder)
-                }
-            case .ntlm(let username, let password, let domain):
-                VStack {
-                    HStack {
-                        TextField("Username", text: Binding(
-                            get: { username },
-                            set: { viewModel.request.auth = .ntlm(username: $0, password: password, domain: domain); viewModel.updateRequest() }
-                        ))
-                        .textFieldStyle(.roundedBorder)
-
-                        SecureField("Password", text: Binding(
-                            get: { password },
-                            set: { viewModel.request.auth = .ntlm(username: username, password: $0, domain: domain); viewModel.updateRequest() }
-                        ))
-                        .textFieldStyle(.roundedBorder)
-                    }
-                    TextField("Domain (optional)", text: Binding(
-                        get: { domain ?? "" },
-                        set: { viewModel.request.auth = .ntlm(username: username, password: password, domain: $0.isEmpty ? nil : $0); viewModel.updateRequest() }
-                    ))
-                    .textFieldStyle(.roundedBorder)
-                }
-            case .awsSignature(let config):
-                AWSSignatureEditor(config: config, onUpdate: { newConfig in
-                    viewModel.request.auth = .awsSignature(newConfig)
+        case .oauth1(let config):
+            authSection("OAuth 1.0", icon: "arrow.triangle.2.circlepath.circle") {
+                OAuth1EditorDS(config: config, onUpdate: { newConfig in
+                    viewModel.request.auth = .oauth1(newConfig)
                     viewModel.updateRequest()
                 })
             }
 
-            Spacer()
+        case .oauth2(let config):
+            authSection("OAuth 2.0", icon: "arrow.triangle.2.circlepath.circle.fill") {
+                OAuth2EditorDS(config: config, onUpdate: { newConfig in
+                    viewModel.request.auth = .oauth2(newConfig)
+                    viewModel.updateRequest()
+                })
+            }
+
+        case .digest(let username, let password):
+            authSection("Digest Authentication", icon: "person.badge.shield.checkmark") {
+                authField("Username", placeholder: "username", value: Binding(
+                    get: { username },
+                    set: { viewModel.request.auth = .digest(username: $0, password: password); viewModel.updateRequest() }
+                ))
+                authField("Password", placeholder: "password", isSecret: true, value: Binding(
+                    get: { password },
+                    set: { viewModel.request.auth = .digest(username: username, password: $0); viewModel.updateRequest() }
+                ))
+            } hint: {
+                "The client will respond to server's WWW-Authenticate challenge with a digest hash."
+            }
+
+        case .ntlm(let username, let password, let domain):
+            authSection("NTLM Authentication", icon: "building.2") {
+                authField("Username", placeholder: "username", value: Binding(
+                    get: { username },
+                    set: { viewModel.request.auth = .ntlm(username: $0, password: password, domain: domain); viewModel.updateRequest() }
+                ))
+                authField("Password", placeholder: "password", isSecret: true, value: Binding(
+                    get: { password },
+                    set: { viewModel.request.auth = .ntlm(username: username, password: $0, domain: domain); viewModel.updateRequest() }
+                ))
+                authField("Domain", placeholder: "CORP (optional)", value: Binding(
+                    get: { domain ?? "" },
+                    set: { viewModel.request.auth = .ntlm(username: username, password: password, domain: $0.isEmpty ? nil : $0); viewModel.updateRequest() }
+                ))
+            } hint: {
+                "NTLM challenge-response authentication handled by URLSession."
+            }
+
+        case .awsSignature(let config):
+            authSection("AWS Signature V4", icon: "cloud.bolt") {
+                AWSSignatureEditorDS(config: config, onUpdate: { newConfig in
+                    viewModel.request.auth = .awsSignature(newConfig)
+                    viewModel.updateRequest()
+                })
+            } hint: {
+                "Requests are signed with AWS Signature Version 4 automatically."
+            }
         }
-        .padding()
+    }
+
+    // MARK: Helpers
+
+    @ViewBuilder
+    private var noneView: some View {
+        VStack(spacing: DS.Spacing.sm) {
+            Image(systemName: "lock.open")
+                .font(.system(size: 32))
+                .foregroundStyle(Color.dsTextTertiary)
+            Text("No Authentication")
+                .font(DS.Font.title)
+                .foregroundStyle(Color.dsTextPrim)
+            Text("Select an auth type above to configure credentials")
+                .font(DS.Font.body)
+                .foregroundStyle(Color.dsTextSec)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, DS.Spacing.xl)
+    }
+
+    @ViewBuilder
+    private func authSection<Content: View>(_ title: String, icon: String, @ViewBuilder fields: () -> Content, hint: (() -> String)? = nil) -> some View {
+        VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+            HStack(spacing: DS.Spacing.xs) {
+                Image(systemName: icon)
+                    .font(.system(size: 13))
+                    .foregroundStyle(Color.dsAcc)
+                Text(title)
+                    .font(DS.Font.labelLg)
+                    .foregroundStyle(Color.dsTextPrim)
+            }
+
+            VStack(spacing: 0) {
+                fields()
+            }
+            .background(Color.dsSurf)
+            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.md))
+            .overlay(
+                RoundedRectangle(cornerRadius: DS.Radius.md)
+                    .stroke(Color.dsBord, lineWidth: 1)
+            )
+
+            if let hint = hint?() {
+                HStack(spacing: DS.Spacing.xs) {
+                    Image(systemName: "info.circle")
+                        .font(.system(size: 10))
+                        .foregroundStyle(Color.dsTextTertiary)
+                    Text(hint)
+                        .font(DS.Font.caption)
+                        .foregroundStyle(Color.dsTextTertiary)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func authField(_ label: String, placeholder: String, isSecret: Bool = false, value: Binding<String>) -> some View {
+        HStack(spacing: DS.Spacing.sm) {
+            Text(label)
+                .font(DS.Font.body)
+                .foregroundStyle(Color.dsTextSec)
+                .frame(width: 100, alignment: .leading)
+            if isSecret {
+                SecureField(placeholder, text: value)
+                    .textFieldStyle(.plain)
+                    .font(DS.Font.bodyMono)
+                    .foregroundStyle(Color.dsTextPrim)
+            } else {
+                TextField(placeholder, text: value)
+                    .textFieldStyle(.plain)
+                    .font(DS.Font.bodyMono)
+                    .foregroundStyle(Color.dsTextPrim)
+            }
+        }
+        .padding(.horizontal, DS.Spacing.md)
+        .padding(.vertical, DS.Spacing.sm)
     }
 
     private enum AuthType: String, CaseIterable {
@@ -150,24 +270,15 @@ struct AuthEditorView: View {
             },
             set: { newType in
                 switch newType {
-                case .none:
-                    viewModel.request.auth = .none
-                case .bearer:
-                    viewModel.request.auth = .bearer(token: "")
-                case .basic:
-                    viewModel.request.auth = .basic(username: "", password: "")
-                case .apiKey:
-                    viewModel.request.auth = .apiKey(key: "", value: "", location: .header)
-                case .oauth1:
-                    viewModel.request.auth = .oauth1(OAuth1Config())
-                case .oauth2:
-                    viewModel.request.auth = .oauth2(OAuth2Config())
-                case .digest:
-                    viewModel.request.auth = .digest(username: "", password: "")
-                case .ntlm:
-                    viewModel.request.auth = .ntlm(username: "", password: "", domain: nil)
-                case .awsSignature:
-                    viewModel.request.auth = .awsSignature(AWSSignatureConfig(accessKey: "", secretKey: "", region: "us-east-1", service: "execute-api"))
+                case .none: viewModel.request.auth = .none
+                case .bearer: viewModel.request.auth = .bearer(token: "")
+                case .basic: viewModel.request.auth = .basic(username: "", password: "")
+                case .apiKey: viewModel.request.auth = .apiKey(key: "", value: "", location: .header)
+                case .oauth1: viewModel.request.auth = .oauth1(OAuth1Config())
+                case .oauth2: viewModel.request.auth = .oauth2(OAuth2Config())
+                case .digest: viewModel.request.auth = .digest(username: "", password: "")
+                case .ntlm: viewModel.request.auth = .ntlm(username: "", password: "", domain: nil)
+                case .awsSignature: viewModel.request.auth = .awsSignature(AWSSignatureConfig(accessKey: "", secretKey: "", region: "us-east-1", service: "execute-api"))
                 }
                 viewModel.updateRequest()
             }
@@ -175,200 +286,253 @@ struct AuthEditorView: View {
     }
 }
 
-struct AWSSignatureEditor: View {
+// MARK: - AWS Signature Editor
+
+struct AWSSignatureEditorDS: View {
     let config: AWSSignatureConfig
     let onUpdate: (AWSSignatureConfig) -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                TextField("Access Key", text: Binding(
-                    get: { config.accessKey },
-                    set: { var c = config; c.accessKey = $0; onUpdate(c) }
-                ))
-                .textFieldStyle(.roundedBorder)
-
-                SecureField("Secret Key", text: Binding(
-                    get: { config.secretKey },
-                    set: { var c = config; c.secretKey = $0; onUpdate(c) }
-                ))
-                .textFieldStyle(.roundedBorder)
-            }
-
-            HStack {
-                TextField("Region", text: Binding(
-                    get: { config.region },
-                    set: { var c = config; c.region = $0; onUpdate(c) }
-                ))
-                .textFieldStyle(.roundedBorder)
-
-                TextField("Service", text: Binding(
-                    get: { config.service },
-                    set: { var c = config; c.service = $0; onUpdate(c) }
-                ))
-                .textFieldStyle(.roundedBorder)
-            }
-
-            Text("AWS Signature V4 signing is applied to each request automatically.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+        VStack(spacing: 0) {
+            field("Access Key", placeholder: "AKIAIOSFODNN7EXAMPLE", value: Binding(
+                get: { config.accessKey },
+                set: { var c = config; c.accessKey = $0; onUpdate(c) }
+            ))
+            DSDivider()
+            secureField("Secret Key", placeholder: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY", value: Binding(
+                get: { config.secretKey },
+                set: { var c = config; c.secretKey = $0; onUpdate(c) }
+            ))
+            DSDivider()
+            field("Region", placeholder: "us-east-1", value: Binding(
+                get: { config.region },
+                set: { var c = config; c.region = $0; onUpdate(c) }
+            ))
+            DSDivider()
+            field("Service", placeholder: "execute-api", value: Binding(
+                get: { config.service },
+                set: { var c = config; c.service = $0; onUpdate(c) }
+            ))
         }
+    }
+
+    private func field(_ label: String, placeholder: String, value: Binding<String>) -> some View {
+        HStack(spacing: DS.Spacing.sm) {
+            Text(label)
+                .font(DS.Font.body)
+                .foregroundStyle(Color.dsTextSec)
+                .frame(width: 100, alignment: .leading)
+            TextField(placeholder, text: value)
+                .textFieldStyle(.plain)
+                .font(DS.Font.bodyMono)
+                .foregroundStyle(Color.dsTextPrim)
+        }
+        .padding(.horizontal, DS.Spacing.md)
+        .padding(.vertical, DS.Spacing.sm)
+    }
+
+    private func secureField(_ label: String, placeholder: String, value: Binding<String>) -> some View {
+        HStack(spacing: DS.Spacing.sm) {
+            Text(label)
+                .font(DS.Font.body)
+                .foregroundStyle(Color.dsTextSec)
+                .frame(width: 100, alignment: .leading)
+            SecureField(placeholder, text: value)
+                .textFieldStyle(.plain)
+                .font(DS.Font.bodyMono)
+                .foregroundStyle(Color.dsTextPrim)
+        }
+        .padding(.horizontal, DS.Spacing.md)
+        .padding(.vertical, DS.Spacing.sm)
     }
 }
 
-struct OAuth1Editor: View {
+// MARK: - OAuth1 Editor
+
+struct OAuth1EditorDS: View {
     let config: OAuth1Config
     let onUpdate: (OAuth1Config) -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                TextField("Consumer Key", text: Binding(
-                    get: { config.consumerKey },
-                    set: { var c = config; c.consumerKey = $0; onUpdate(c) }
-                ))
-                .textFieldStyle(.roundedBorder)
-
-                SecureField("Consumer Secret", text: Binding(
-                    get: { config.consumerSecret },
-                    set: { var c = config; c.consumerSecret = $0; onUpdate(c) }
-                ))
-                .textFieldStyle(.roundedBorder)
+        VStack(spacing: 0) {
+            row("Consumer Key", value: Binding(
+                get: { config.consumerKey },
+                set: { var c = config; c.consumerKey = $0; onUpdate(c) }
+            ))
+            DSDivider()
+            secureRow("Consumer Secret", value: Binding(
+                get: { config.consumerSecret },
+                set: { var c = config; c.consumerSecret = $0; onUpdate(c) }
+            ))
+            DSDivider()
+            row("Access Token", value: Binding(
+                get: { config.token },
+                set: { var c = config; c.token = $0; onUpdate(c) }
+            ))
+            DSDivider()
+            secureRow("Token Secret", value: Binding(
+                get: { config.tokenSecret },
+                set: { var c = config; c.tokenSecret = $0; onUpdate(c) }
+            ))
+            DSDivider()
+            HStack(spacing: DS.Spacing.sm) {
+                Text("Signature")
+                    .font(DS.Font.body)
+                    .foregroundStyle(Color.dsTextSec)
+                    .frame(width: 100, alignment: .leading)
+                Picker("", selection: Binding(
+                    get: { config.signatureMethod },
+                    set: { var c = config; c.signatureMethod = $0; onUpdate(c) }
+                )) {
+                    Text("HMAC-SHA1").tag("HMAC-SHA1")
+                    Text("PLAINTEXT").tag("PLAINTEXT")
+                }
+                .pickerStyle(.segmented)
+                .frame(maxWidth: 200)
             }
-
-            HStack {
-                TextField("Access Token", text: Binding(
-                    get: { config.token },
-                    set: { var c = config; c.token = $0; onUpdate(c) }
-                ))
-                .textFieldStyle(.roundedBorder)
-
-                SecureField("Token Secret", text: Binding(
-                    get: { config.tokenSecret },
-                    set: { var c = config; c.tokenSecret = $0; onUpdate(c) }
-                ))
-                .textFieldStyle(.roundedBorder)
-            }
-
-            Picker("Signature Method", selection: Binding(
-                get: { config.signatureMethod },
-                set: { var c = config; c.signatureMethod = $0; onUpdate(c) }
-            )) {
-                Text("HMAC-SHA1").tag("HMAC-SHA1")
-                Text("PLAINTEXT").tag("PLAINTEXT")
-            }
-            .pickerStyle(.segmented)
-
-            Text("OAuth Version: \(config.version)")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            .padding(.horizontal, DS.Spacing.md)
+            .padding(.vertical, DS.Spacing.sm)
         }
+    }
+
+    private func row(_ label: String, value: Binding<String>) -> some View {
+        HStack(spacing: DS.Spacing.sm) {
+            Text(label).font(DS.Font.body).foregroundStyle(Color.dsTextSec).frame(width: 100, alignment: .leading)
+            TextField("", text: value).textFieldStyle(.plain).font(DS.Font.bodyMono).foregroundStyle(Color.dsTextPrim)
+        }
+        .padding(.horizontal, DS.Spacing.md).padding(.vertical, DS.Spacing.sm)
+    }
+
+    private func secureRow(_ label: String, value: Binding<String>) -> some View {
+        HStack(spacing: DS.Spacing.sm) {
+            Text(label).font(DS.Font.body).foregroundStyle(Color.dsTextSec).frame(width: 100, alignment: .leading)
+            SecureField("", text: value).textFieldStyle(.plain).font(DS.Font.bodyMono).foregroundStyle(Color.dsTextPrim)
+        }
+        .padding(.horizontal, DS.Spacing.md).padding(.vertical, DS.Spacing.sm)
     }
 }
 
-struct OAuth2Editor: View {
+// MARK: - OAuth2 Editor
+
+struct OAuth2EditorDS: View {
     let config: OAuth2Config
     let onUpdate: (OAuth2Config) -> Void
     @State private var isFetching = false
     @State private var errorMessage: String?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Picker("Grant Type", selection: Binding(
-                get: { config.grantType },
-                set: { var newConfig = config; newConfig.grantType = $0; onUpdate(newConfig) }
-            )) {
-                Text("Authorization Code").tag("authorization_code")
-                Text("Client Credentials").tag("client_credentials")
-                Text("Password").tag("password")
+        VStack(spacing: 0) {
+            HStack(spacing: DS.Spacing.sm) {
+                Text("Grant Type")
+                    .font(DS.Font.body)
+                    .foregroundStyle(Color.dsTextSec)
+                    .frame(width: 100, alignment: .leading)
+                Picker("", selection: Binding(
+                    get: { config.grantType },
+                    set: { var c = config; c.grantType = $0; onUpdate(c) }
+                )) {
+                    Text("Auth Code").tag("authorization_code")
+                    Text("Client Creds").tag("client_credentials")
+                    Text("Password").tag("password")
+                }
+                .pickerStyle(.segmented)
             }
-            .pickerStyle(.segmented)
+            .padding(.horizontal, DS.Spacing.md)
+            .padding(.vertical, DS.Spacing.sm)
 
-            TextField("Auth URL", text: Binding(
-                get: { config.authUrl ?? "" },
-                set: { var newConfig = config; newConfig.authUrl = $0.isEmpty ? nil : $0; onUpdate(newConfig) }
-            ))
-            .textFieldStyle(.roundedBorder)
-
-            TextField("Access Token URL", text: Binding(
-                get: { config.accessTokenUrl ?? "" },
-                set: { var newConfig = config; newConfig.accessTokenUrl = $0.isEmpty ? nil : $0; onUpdate(newConfig) }
-            ))
-            .textFieldStyle(.roundedBorder)
-
-            HStack {
-                TextField("Client ID", text: Binding(
-                    get: { config.clientId ?? "" },
-                    set: { var newConfig = config; newConfig.clientId = $0.isEmpty ? nil : $0; onUpdate(newConfig) }
-                ))
-                .textFieldStyle(.roundedBorder)
-
-                SecureField("Client Secret", text: Binding(
-                    get: { config.clientSecret ?? "" },
-                    set: { var newConfig = config; newConfig.clientSecret = $0.isEmpty ? nil : $0; onUpdate(newConfig) }
-                ))
-                .textFieldStyle(.roundedBorder)
-            }
-
-            TextField("Scope", text: Binding(
-                get: { config.scope ?? "" },
-                set: { var newConfig = config; newConfig.scope = $0.isEmpty ? nil : $0; onUpdate(newConfig) }
-            ))
-            .textFieldStyle(.roundedBorder)
-
-            TextField("Redirect URI", text: Binding(
-                get: { config.redirectUri ?? "" },
-                set: { var newConfig = config; newConfig.redirectUri = $0.isEmpty ? nil : $0; onUpdate(newConfig) }
-            ))
-            .textFieldStyle(.roundedBorder)
+            DSDivider()
+            urlRow("Auth URL", key: \.authUrl)
+            DSDivider()
+            urlRow("Token URL", key: \.accessTokenUrl)
+            DSDivider()
+            textRow("Client ID", key: \.clientId)
+            DSDivider()
+            secureOptionalRow("Client Secret", key: \.clientSecret)
+            DSDivider()
+            textRow("Scope", key: \.scope)
+            DSDivider()
+            textRow("Redirect URI", key: \.redirectUri)
 
             if config.grantType == "password" {
-                HStack {
-                    TextField("Username", text: Binding(
-                        get: { config.username ?? "" },
-                        set: { var newConfig = config; newConfig.username = $0.isEmpty ? nil : $0; onUpdate(newConfig) }
-                    ))
-                    .textFieldStyle(.roundedBorder)
-
-                    SecureField("Password", text: Binding(
-                        get: { config.password ?? "" },
-                        set: { var newConfig = config; newConfig.password = $0.isEmpty ? nil : $0; onUpdate(newConfig) }
-                    ))
-                    .textFieldStyle(.roundedBorder)
-                }
+                DSDivider()
+                textRow("Username", key: \.username)
+                DSDivider()
+                secureOptionalRow("Password", key: \.password)
             }
 
-            HStack {
-                TextField("Token", text: Binding(
+            DSDivider()
+            HStack(spacing: DS.Spacing.sm) {
+                Text("Token")
+                    .font(DS.Font.body)
+                    .foregroundStyle(Color.dsTextSec)
+                    .frame(width: 100, alignment: .leading)
+                TextField("access_token…", text: Binding(
                     get: { config.token ?? "" },
-                    set: { var newConfig = config; newConfig.token = $0.isEmpty ? nil : $0; onUpdate(newConfig) }
+                    set: { var c = config; c.token = $0.isEmpty ? nil : $0; onUpdate(c) }
                 ))
-                .textFieldStyle(.roundedBorder)
+                .textFieldStyle(.plain)
+                .font(DS.Font.bodyMono)
+                .foregroundStyle(Color.dsAcc)
 
                 if config.grantType == "authorization_code" {
-                    Button("Open Browser") {
-                        openBrowser()
-                    }
-                    .buttonStyle(.bordered)
-                }
-
-                if config.grantType == "client_credentials" || config.grantType == "password" {
-                    Button(isFetching ? "Fetching..." : "Get Token") {
-                        fetchToken()
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(isFetching)
+                    Button("Open Browser") { openBrowser() }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                } else {
+                    Button(isFetching ? "Fetching…" : "Get Token") { fetchToken() }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                        .disabled(isFetching)
                 }
             }
+            .padding(.horizontal, DS.Spacing.md)
+            .padding(.vertical, DS.Spacing.sm)
 
-            if let errorMessage = errorMessage {
-                Text(errorMessage)
-                    .font(.caption)
-                    .foregroundStyle(.red)
+            if let err = errorMessage {
+                HStack {
+                    Image(systemName: "xmark.circle")
+                        .foregroundStyle(Color.dsError)
+                    Text(err)
+                        .font(DS.Font.caption)
+                        .foregroundStyle(Color.dsError)
+                }
+                .padding(.horizontal, DS.Spacing.md)
+                .padding(.vertical, DS.Spacing.xs)
             }
-
-            Spacer()
         }
+    }
+
+    private func urlRow(_ label: String, key: WritableKeyPath<OAuth2Config, String?>) -> some View {
+        HStack(spacing: DS.Spacing.sm) {
+            Text(label).font(DS.Font.body).foregroundStyle(Color.dsTextSec).frame(width: 100, alignment: .leading)
+            TextField("https://…", text: Binding(
+                get: { config[keyPath: key] ?? "" },
+                set: { var c = config; c[keyPath: key] = $0.isEmpty ? nil : $0; onUpdate(c) }
+            )).textFieldStyle(.plain).font(DS.Font.bodyMono).foregroundStyle(Color.dsTextPrim)
+        }
+        .padding(.horizontal, DS.Spacing.md).padding(.vertical, DS.Spacing.sm)
+    }
+
+    private func textRow(_ label: String, key: WritableKeyPath<OAuth2Config, String?>) -> some View {
+        HStack(spacing: DS.Spacing.sm) {
+            Text(label).font(DS.Font.body).foregroundStyle(Color.dsTextSec).frame(width: 100, alignment: .leading)
+            TextField("", text: Binding(
+                get: { config[keyPath: key] ?? "" },
+                set: { var c = config; c[keyPath: key] = $0.isEmpty ? nil : $0; onUpdate(c) }
+            )).textFieldStyle(.plain).font(DS.Font.bodyMono).foregroundStyle(Color.dsTextPrim)
+        }
+        .padding(.horizontal, DS.Spacing.md).padding(.vertical, DS.Spacing.sm)
+    }
+
+    private func secureOptionalRow(_ label: String, key: WritableKeyPath<OAuth2Config, String?>) -> some View {
+        HStack(spacing: DS.Spacing.sm) {
+            Text(label).font(DS.Font.body).foregroundStyle(Color.dsTextSec).frame(width: 100, alignment: .leading)
+            SecureField("", text: Binding(
+                get: { config[keyPath: key] ?? "" },
+                set: { var c = config; c[keyPath: key] = $0.isEmpty ? nil : $0; onUpdate(c) }
+            )).textFieldStyle(.plain).font(DS.Font.bodyMono).foregroundStyle(Color.dsTextPrim)
+        }
+        .padding(.horizontal, DS.Spacing.md).padding(.vertical, DS.Spacing.sm)
     }
 
     private func openBrowser() {
@@ -385,20 +549,22 @@ struct OAuth2Editor: View {
     private func fetchToken() {
         isFetching = true
         errorMessage = nil
-
         Task {
             let handler = OAuth2Handler()
             let result = await handler.fetchToken(config: config)
             isFetching = false
-
             switch result {
             case .success(let token):
-                var newConfig = config
-                newConfig.token = token
-                onUpdate(newConfig)
+                var c = config; c.token = token; onUpdate(c)
             case .failure(let error):
                 errorMessage = error.localizedDescription
             }
         }
     }
 }
+
+// MARK: - Kept for backward compat (used by existing code)
+
+typealias AWSSignatureEditor = AWSSignatureEditorDS
+typealias OAuth1Editor = OAuth1EditorDS
+typealias OAuth2Editor = OAuth2EditorDS
