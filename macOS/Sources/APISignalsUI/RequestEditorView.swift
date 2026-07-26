@@ -33,18 +33,28 @@ public struct RequestEditorView: View {
     }
 
     public var body: some View {
-        VStack(spacing: 0) {
-            RequestBarView(viewModel: viewModel)
-                .padding()
-
-            Picker("", selection: $selectedRequestTab) {
-                ForEach(RequestTab.allCases) { tab in
-                    Text(tab.rawValue).tag(tab)
-                }
+        VSplitView {
+            // Top: request editor
+            VStack(spacing: 0) {
+                RequestURLBar(viewModel: viewModel)
+                DSDivider()
+                RequestTabBar(selectedTab: $selectedRequestTab, viewModel: viewModel)
+                DSDivider()
+                requestTabContent
             }
-            .pickerStyle(.segmented)
-            .padding(.horizontal)
+            .frame(minHeight: 260)
+            .background(Color.dsBg)
 
+            // Bottom: response
+            ResponseView(viewModel: viewModel)
+                .frame(minHeight: 180)
+                .background(Color.dsBg)
+        }
+    }
+
+    @ViewBuilder
+    private var requestTabContent: some View {
+        Group {
             switch selectedRequestTab {
             case .params:
                 ParamsEditorView(viewModel: viewModel)
@@ -59,14 +69,212 @@ public struct RequestEditorView: View {
             case .settings:
                 RequestSettingsEditorView(viewModel: viewModel)
             }
-
-            Divider()
-
-            ResponseView(viewModel: viewModel)
-                .frame(minHeight: 200)
         }
     }
 }
+
+// MARK: - URL Bar
+
+struct RequestURLBar: View {
+    @ObservedObject var viewModel: RequestViewModel
+    @State private var isCodeSheetPresented = false
+
+    var body: some View {
+        HStack(spacing: DS.Spacing.sm) {
+            // Method picker
+            Menu {
+                ForEach(HTTPMethod.allCases, id: \.self) { method in
+                    Button(method.rawValue) {
+                        viewModel.request.method = method
+                        viewModel.updateRequest()
+                    }
+                }
+            } label: {
+                HStack(spacing: DS.Spacing.xs) {
+                    Text(viewModel.request.method.rawValue)
+                        .font(DS.Font.label)
+                        .fontWeight(.bold)
+                        .foregroundStyle(viewModel.request.method.color)
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(Color.dsTextSec)
+                }
+                .padding(.horizontal, DS.Spacing.sm)
+                .padding(.vertical, DS.Spacing.xs)
+                .background(viewModel.request.method.color.opacity(0.12))
+                .clipShape(RoundedRectangle(cornerRadius: DS.Radius.sm))
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+
+            // URL field
+            ZStack(alignment: .leading) {
+                if (viewModel.request.url.url?.absoluteString ?? "").isEmpty {
+                    Text("https://api.example.com/v1/resource or paste cURL...")
+                        .font(DS.Font.urlBar)
+                        .foregroundStyle(Color.dsTextTertiary)
+                        .allowsHitTesting(false)
+                        .padding(.horizontal, DS.Spacing.sm)
+                }
+                TextField("", text: Binding(
+                    get: { viewModel.request.url.url?.absoluteString ?? "" },
+                    set: { newValue in
+                        let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                        if trimmed.hasPrefix("curl ") {
+                            if let parsed = try? CurlConverter().parse(trimmed) {
+                                viewModel.request.method = parsed.method
+                                viewModel.request.url = parsed.url
+                                viewModel.request.headers = parsed.headers
+                                viewModel.request.queryParams = parsed.queryParams
+                                viewModel.request.body = parsed.body
+                                viewModel.updateRequest()
+                            }
+                        } else {
+                            viewModel.request.url = URLComponents(string: newValue) ?? URLComponents()
+                        }
+                    }
+                ))
+                .font(DS.Font.urlBar)
+                .foregroundStyle(Color.dsTextPrim)
+                .textFieldStyle(.plain)
+                .padding(.horizontal, DS.Spacing.sm)
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: 34)
+            .background(Color.dsSurf)
+            .overlay(
+                RoundedRectangle(cornerRadius: DS.Radius.sm)
+                    .stroke(Color.dsBord, lineWidth: 1)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.sm))
+
+            // Code snippet button
+            Button {
+                isCodeSheetPresented = true
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "chevron.left.forwardslash.chevron.right")
+                        .font(.system(size: 11))
+                    Text("Code")
+                        .font(DS.Font.label)
+                }
+                .foregroundStyle(Color.dsTextSec)
+                .padding(.horizontal, DS.Spacing.sm)
+                .padding(.vertical, DS.Spacing.xs)
+                .background(Color.dsSurf)
+                .overlay(
+                    RoundedRectangle(cornerRadius: DS.Radius.sm)
+                        .stroke(Color.dsBord, lineWidth: 1)
+                )
+                .clipShape(RoundedRectangle(cornerRadius: DS.Radius.sm))
+            }
+            .buttonStyle(.plain)
+            .sheet(isPresented: $isCodeSheetPresented) {
+                CodeSnippetView(request: viewModel.request)
+            }
+
+            // Send / Cancel button
+            Button {
+                if viewModel.isLoading { viewModel.cancelRequest() }
+                else { viewModel.sendRequest() }
+            } label: {
+                HStack(spacing: DS.Spacing.xs) {
+                    if viewModel.isLoading {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 11, weight: .semibold))
+                        Text("Cancel")
+                            .font(DS.Font.label)
+                    } else {
+                        Image(systemName: "paperplane.fill")
+                            .font(.system(size: 11))
+                        Text("Send")
+                            .font(DS.Font.label)
+                    }
+                }
+                .foregroundStyle(.white)
+                .padding(.horizontal, DS.Spacing.md)
+                .padding(.vertical, DS.Spacing.xs)
+                .background(viewModel.isLoading ? Color.dsError : Color.dsAcc)
+                .clipShape(RoundedRectangle(cornerRadius: DS.Radius.sm))
+            }
+            .buttonStyle(.plain)
+            .keyboardShortcut(.return, modifiers: .command)
+        }
+        .padding(.horizontal, DS.Spacing.lg)
+        .padding(.vertical, DS.Spacing.sm)
+        .background(Color.dsBg)
+    }
+}
+
+// MARK: - Tab Bar
+
+struct RequestTabBar: View {
+    @Binding var selectedTab: RequestTab
+    @ObservedObject var viewModel: RequestViewModel
+
+    var body: some View {
+        HStack(spacing: 0) {
+            ForEach(RequestTab.allCases) { tab in
+                tabButton(tab)
+            }
+            Spacer()
+        }
+        .padding(.horizontal, DS.Spacing.lg)
+        .background(.ultraThinMaterial)
+    }
+
+    @ViewBuilder
+    private func tabButton(_ tab: RequestTab) -> some View {
+        let isSelected = selectedTab == tab
+        let badge = badgeCount(for: tab)
+
+        Button {
+            selectedTab = tab
+        } label: {
+            HStack(spacing: DS.Spacing.xs) {
+                Text(tab.rawValue)
+                    .font(isSelected ? DS.Font.label : DS.Font.body)
+                    .foregroundStyle(isSelected ? Color.dsTextPrim : Color.dsTextSec)
+                if badge > 0 {
+                    Text("\(badge)")
+                        .font(DS.Font.captionMono)
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 1)
+                        .background(Color.dsAcc)
+                        .clipShape(Capsule())
+                }
+            }
+            .padding(.horizontal, DS.Spacing.sm)
+            .padding(.vertical, DS.Spacing.sm)
+            .overlay(alignment: .bottom) {
+                if isSelected {
+                    Rectangle()
+                        .fill(Color.dsAcc)
+                        .frame(height: 2)
+                }
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func badgeCount(for tab: RequestTab) -> Int {
+        switch tab {
+        case .params:
+            return viewModel.request.queryParams.filter(\.isEnabled).count
+        case .headers:
+            return viewModel.request.headers.filter(\.isEnabled).count
+        case .auth:
+            return viewModel.request.auth != .none ? 1 : 0
+        case .body:
+            return viewModel.request.body != .none ? 1 : 0
+        default:
+            return 0
+        }
+    }
+}
+
+// MARK: - Request Tab enum
 
 enum RequestTab: String, CaseIterable, Identifiable {
     case params = "Params"
@@ -79,171 +287,176 @@ enum RequestTab: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
+// MARK: - Request Settings Editor
+
 struct RequestSettingsEditorView: View {
     @ObservedObject var viewModel: RequestViewModel
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                Form {
-                    Section("Network") {
-                        Toggle("Follow Redirects", isOn: Binding(
-                            get: { viewModel.request.settings.followRedirects },
-                            set: { viewModel.request.settings.followRedirects = $0; viewModel.updateRequest() }
-                        ))
-
-                        Toggle("Verify SSL Certificates", isOn: Binding(
-                            get: { viewModel.request.settings.verifySSL },
-                            set: { viewModel.request.settings.verifySSL = $0; viewModel.updateRequest() }
-                        ))
-
-                        Toggle("Accept Compression (gzip, br)", isOn: Binding(
-                            get: { viewModel.request.settings.acceptCompression },
-                            set: { viewModel.request.settings.acceptCompression = $0; viewModel.updateRequest() }
-                        ))
-
-                        HStack {
-                            Text("Timeout")
-                            Spacer()
-                            Stepper(
-                                "\(Int(viewModel.request.settings.timeout))s",
-                                value: Binding(
-                                    get: { viewModel.request.settings.timeout },
-                                    set: { viewModel.request.settings.timeout = $0; viewModel.updateRequest() }
-                                ),
-                                in: 1...600,
-                                step: 5
-                            )
-                            .frame(width: 140)
-                        }
-                    }
-
-                    Section("Cookies") {
-                        Toggle("Send Cookies", isOn: Binding(
-                            get: { viewModel.request.settings.sendCookies },
-                            set: { viewModel.request.settings.sendCookies = $0; viewModel.updateRequest() }
-                        ))
-
-                        Toggle("Store Cookies", isOn: Binding(
-                            get: { viewModel.request.settings.storeCookies },
-                            set: { viewModel.request.settings.storeCookies = $0; viewModel.updateRequest() }
-                        ))
-                    }
-
-                    Section("Proxy") {
-                        let proxyEnabled = Binding(
-                            get: { viewModel.request.settings.proxy?.isEnabled ?? false },
-                            set: { enabled in
-                                if viewModel.request.settings.proxy == nil {
-                                    viewModel.request.settings.proxy = ProxyConfig()
-                                }
-                                viewModel.request.settings.proxy?.isEnabled = enabled
-                                viewModel.updateRequest()
-                            }
+            VStack(spacing: 0) {
+                settingsSection("Network") {
+                    settingsToggle("Follow Redirects",
+                                   icon: "arrow.triangle.branch",
+                                   value: Binding(
+                        get: { viewModel.request.settings.followRedirects },
+                        set: { viewModel.request.settings.followRedirects = $0; viewModel.updateRequest() }
+                    ))
+                    DSDivider()
+                    settingsToggle("Verify SSL Certificates",
+                                   icon: "lock.shield",
+                                   value: Binding(
+                        get: { viewModel.request.settings.verifySSL },
+                        set: { viewModel.request.settings.verifySSL = $0; viewModel.updateRequest() }
+                    ))
+                    DSDivider()
+                    settingsToggle("Accept Compression",
+                                   icon: "doc.zipper",
+                                   value: Binding(
+                        get: { viewModel.request.settings.acceptCompression },
+                        set: { viewModel.request.settings.acceptCompression = $0; viewModel.updateRequest() }
+                    ))
+                    DSDivider()
+                    HStack {
+                        Label("Timeout", systemImage: "clock")
+                            .font(DS.Font.body)
+                            .foregroundStyle(Color.dsTextPrim)
+                        Spacer()
+                        Stepper(
+                            "\(Int(viewModel.request.settings.timeout))s",
+                            value: Binding(
+                                get: { viewModel.request.settings.timeout },
+                                set: { viewModel.request.settings.timeout = $0; viewModel.updateRequest() }
+                            ),
+                            in: 1...600,
+                            step: 5
                         )
-                        Toggle("Use Custom Proxy", isOn: proxyEnabled)
-
-                        if viewModel.request.settings.proxy?.isEnabled == true {
-                            HStack {
-                                TextField("Host", text: Binding(
-                                    get: { viewModel.request.settings.proxy?.host ?? "" },
-                                    set: { viewModel.request.settings.proxy?.host = $0; viewModel.updateRequest() }
-                                ))
-                                .textFieldStyle(.roundedBorder)
-
-                                Text(":")
-                                    .foregroundStyle(.secondary)
-
-                                TextField("Port", value: Binding(
-                                    get: { viewModel.request.settings.proxy?.port ?? 8080 },
-                                    set: { viewModel.request.settings.proxy?.port = $0; viewModel.updateRequest() }
-                                ), format: .number)
-                                .textFieldStyle(.roundedBorder)
-                                .frame(width: 70)
-                            }
-
-                            HStack {
-                                TextField("Username (optional)", text: Binding(
-                                    get: { viewModel.request.settings.proxy?.username ?? "" },
-                                    set: { viewModel.request.settings.proxy?.username = $0.isEmpty ? nil : $0; viewModel.updateRequest() }
-                                ))
-                                .textFieldStyle(.roundedBorder)
-
-                                SecureField("Password (optional)", text: Binding(
-                                    get: { viewModel.request.settings.proxy?.password ?? "" },
-                                    set: { viewModel.request.settings.proxy?.password = $0.isEmpty ? nil : $0; viewModel.updateRequest() }
-                                ))
-                                .textFieldStyle(.roundedBorder)
-                            }
-                        }
+                        .font(DS.Font.body)
                     }
+                    .padding(.horizontal, DS.Spacing.md)
+                    .padding(.vertical, DS.Spacing.sm)
                 }
-                .formStyle(.grouped)
-            }
-        }
-    }
-}
 
-struct RequestBarView: View {
-    @ObservedObject var viewModel: RequestViewModel
-    @State private var isCodeSheetPresented = false
-
-    var body: some View {
-        HStack(spacing: 8) {
-            Picker("", selection: $viewModel.request.method) {
-                ForEach(HTTPMethod.allCases, id: \.self) { method in
-                    Text(method.rawValue).tag(method)
+                settingsSection("Cookies") {
+                    settingsToggle("Send Cookies",
+                                   icon: "tray.and.arrow.up",
+                                   value: Binding(
+                        get: { viewModel.request.settings.sendCookies },
+                        set: { viewModel.request.settings.sendCookies = $0; viewModel.updateRequest() }
+                    ))
+                    DSDivider()
+                    settingsToggle("Store Cookies",
+                                   icon: "tray.and.arrow.down",
+                                   value: Binding(
+                        get: { viewModel.request.settings.storeCookies },
+                        set: { viewModel.request.settings.storeCookies = $0; viewModel.updateRequest() }
+                    ))
                 }
-            }
-            .pickerStyle(.menu)
-            .frame(width: 100)
-            .onChange(of: viewModel.request.method) { _, _ in
-                viewModel.updateRequest()
-            }
 
-            TextField("URL or paste cURL...", text: Binding(
-                get: { viewModel.request.url.url?.absoluteString ?? "" },
-                set: { newValue in
-                    let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
-                    if trimmed.hasPrefix("curl ") {
-                        // Auto-parse cURL command
-                        if let parsed = try? CurlConverter().parse(trimmed) {
-                            viewModel.request.method = parsed.method
-                            viewModel.request.url = parsed.url
-                            viewModel.request.headers = parsed.headers
-                            viewModel.request.queryParams = parsed.queryParams
-                            viewModel.request.body = parsed.body
+                settingsSection("Proxy") {
+                    settingsToggle("Use Custom Proxy",
+                                   icon: "network.badge.shield.half.filled",
+                                   value: Binding(
+                        get: { viewModel.request.settings.proxy?.isEnabled ?? false },
+                        set: { enabled in
+                            if viewModel.request.settings.proxy == nil {
+                                viewModel.request.settings.proxy = ProxyConfig()
+                            }
+                            viewModel.request.settings.proxy?.isEnabled = enabled
                             viewModel.updateRequest()
                         }
-                    } else {
-                        viewModel.request.url = URLComponents(string: newValue) ?? URLComponents()
+                    ))
+
+                    if viewModel.request.settings.proxy?.isEnabled == true {
+                        DSDivider()
+                        HStack(spacing: DS.Spacing.sm) {
+                            Label("Host", systemImage: "server.rack")
+                                .font(DS.Font.body)
+                                .foregroundStyle(Color.dsTextPrim)
+                                .frame(width: 80, alignment: .leading)
+                            TextField("proxy.example.com", text: Binding(
+                                get: { viewModel.request.settings.proxy?.host ?? "" },
+                                set: { viewModel.request.settings.proxy?.host = $0; viewModel.updateRequest() }
+                            ))
+                            .textFieldStyle(.roundedBorder)
+                            .font(DS.Font.bodyMono)
+                            Text(":")
+                                .foregroundStyle(Color.dsTextSec)
+                            TextField("8080", value: Binding(
+                                get: { viewModel.request.settings.proxy?.port ?? 8080 },
+                                set: { viewModel.request.settings.proxy?.port = $0; viewModel.updateRequest() }
+                            ), format: .number)
+                            .textFieldStyle(.roundedBorder)
+                            .font(DS.Font.bodyMono)
+                            .frame(width: 70)
+                        }
+                        .padding(.horizontal, DS.Spacing.md)
+                        .padding(.vertical, DS.Spacing.sm)
+
+                        DSDivider()
+                        HStack(spacing: DS.Spacing.sm) {
+                            Label("Auth", systemImage: "key")
+                                .font(DS.Font.body)
+                                .foregroundStyle(Color.dsTextPrim)
+                                .frame(width: 80, alignment: .leading)
+                            TextField("Username", text: Binding(
+                                get: { viewModel.request.settings.proxy?.username ?? "" },
+                                set: { viewModel.request.settings.proxy?.username = $0.isEmpty ? nil : $0; viewModel.updateRequest() }
+                            ))
+                            .textFieldStyle(.roundedBorder)
+                            .font(DS.Font.bodyMono)
+                            SecureField("Password", text: Binding(
+                                get: { viewModel.request.settings.proxy?.password ?? "" },
+                                set: { viewModel.request.settings.proxy?.password = $0.isEmpty ? nil : $0; viewModel.updateRequest() }
+                            ))
+                            .textFieldStyle(.roundedBorder)
+                            .font(DS.Font.bodyMono)
+                        }
+                        .padding(.horizontal, DS.Spacing.md)
+                        .padding(.vertical, DS.Spacing.sm)
                     }
                 }
-            ))
-            .textFieldStyle(.roundedBorder)
-
-            Button(viewModel.isLoading ? "Cancel" : "Send") {
-                if viewModel.isLoading {
-                    viewModel.cancelRequest()
-                } else {
-                    viewModel.sendRequest()
-                }
             }
-            .buttonStyle(.borderedProminent)
-            .frame(width: 80)
-            .keyboardShortcut(.return, modifiers: .command)
-
-            Button("Code") {
-                isCodeSheetPresented = true
-            }
-            .buttonStyle(.borderless)
-            .help("Generate code snippets")
-            .sheet(isPresented: $isCodeSheetPresented) {
-                CodeSnippetView(request: viewModel.request)
-            }
+            .padding(DS.Spacing.lg)
         }
+        .background(Color.dsBg)
+    }
+
+    @ViewBuilder
+    private func settingsSection<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            DSSectionHeader(title: title)
+                .padding(.bottom, DS.Spacing.xs)
+            VStack(spacing: 0) {
+                content()
+            }
+            .background(Color.dsSurf)
+            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.md))
+            .overlay(
+                RoundedRectangle(cornerRadius: DS.Radius.md)
+                    .stroke(Color.dsBord, lineWidth: 1)
+            )
+        }
+        .padding(.bottom, DS.Spacing.lg)
+    }
+
+    private func settingsToggle(_ title: String, icon: String, value: Binding<Bool>) -> some View {
+        HStack {
+            Label(title, systemImage: icon)
+                .font(DS.Font.body)
+                .foregroundStyle(Color.dsTextPrim)
+            Spacer()
+            Toggle("", isOn: value)
+                .toggleStyle(.switch)
+                .labelsHidden()
+                .controlSize(.small)
+        }
+        .padding(.horizontal, DS.Spacing.md)
+        .padding(.vertical, DS.Spacing.sm)
     }
 }
+
+// MARK: - Code Snippet View (redesigned)
 
 struct CodeSnippetView: View {
     let request: APIRequest
@@ -266,61 +479,109 @@ struct CodeSnippetView: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack {
+                Text("Code Snippet")
+                    .font(DS.Font.title)
+                    .foregroundStyle(Color.dsTextPrim)
+                Spacer()
                 Picker("Language", selection: $selectedLanguage) {
-                    ForEach(0..<languages.count, id: \.self) { index in
-                        Text(languages[index]).tag(index)
+                    ForEach(0..<languages.count, id: \.self) { i in
+                        Text(languages[i]).tag(i)
                     }
                 }
                 .pickerStyle(.segmented)
-                .frame(width: 300)
-
-                Spacer()
-
-                Button("Copy") {
+                .frame(width: 280)
+                Button {
                     NSPasteboard.general.clearContents()
                     NSPasteboard.general.setString(snippet, forType: .string)
+                } label: {
+                    Label("Copy", systemImage: "doc.on.clipboard")
+                        .font(DS.Font.label)
                 }
-
-                Button("Close") {
-                    dismiss()
-                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                Button("Close") { dismiss() }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
             }
-            .padding()
+            .padding(DS.Spacing.lg)
+
+            DSDivider()
 
             ScrollView {
                 Text(snippet)
-                    .font(.system(.body, design: .monospaced))
+                    .font(DS.Font.bodyMono)
+                    .foregroundStyle(Color.dsTextPrim)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding()
+                    .padding(DS.Spacing.lg)
             }
+            .background(Color.dsSurf)
         }
-        .frame(minWidth: 500, minHeight: 300)
+        .background(Color.dsBg)
+        .frame(minWidth: 560, minHeight: 360)
     }
 }
+
+// MARK: - Scripts Editor (redesigned)
 
 struct ScriptsEditorView: View {
     @ObservedObject var viewModel: RequestViewModel
 
     var body: some View {
-        VStack(spacing: 16) {
-            VStack(alignment: .leading) {
-                Text("Pre-request Script")
-                    .font(.headline)
-                CodeEditor(text: Binding(
+        VStack(spacing: 0) {
+            scriptSection(
+                title: "Pre-request Script",
+                subtitle: "Runs before the request is sent",
+                icon: "bolt.circle",
+                text: Binding(
                     get: { viewModel.request.preRequestScript ?? "" },
-                    set: { viewModel.request.preRequestScript = $0; viewModel.updateRequest() }
-                ))
-            }
+                    set: { viewModel.request.preRequestScript = $0.isEmpty ? nil : $0; viewModel.updateRequest() }
+                )
+            )
 
-            VStack(alignment: .leading) {
-                Text("Post-response Script")
-                    .font(.headline)
-                CodeEditor(text: Binding(
+            DSDivider()
+
+            scriptSection(
+                title: "Post-response Script",
+                subtitle: "Runs after the response is received",
+                icon: "checkmark.circle",
+                text: Binding(
                     get: { viewModel.request.postResponseScript ?? "" },
-                    set: { viewModel.request.postResponseScript = $0; viewModel.updateRequest() }
-                ))
-            }
+                    set: { viewModel.request.postResponseScript = $0.isEmpty ? nil : $0; viewModel.updateRequest() }
+                )
+            )
         }
-        .padding()
+        .background(Color.dsBg)
+    }
+
+    @ViewBuilder
+    private func scriptSection(title: String, subtitle: String, icon: String, text: Binding<String>) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: DS.Spacing.sm) {
+                Image(systemName: icon)
+                    .font(.system(size: 13))
+                    .foregroundStyle(Color.dsAcc)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(title)
+                        .font(DS.Font.label)
+                        .foregroundStyle(Color.dsTextPrim)
+                    Text(subtitle)
+                        .font(DS.Font.caption)
+                        .foregroundStyle(Color.dsTextSec)
+                }
+            }
+            .padding(.horizontal, DS.Spacing.lg)
+            .padding(.vertical, DS.Spacing.sm)
+
+            TextEditor(text: text)
+                .font(DS.Font.bodyMono)
+                .foregroundStyle(Color.dsTextPrim)
+                .scrollContentBackground(.hidden)
+                .background(Color.dsSurf)
+                .frame(minHeight: 120)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 0)
+                        .stroke(Color.dsBord, lineWidth: 0)
+                )
+        }
     }
 }
