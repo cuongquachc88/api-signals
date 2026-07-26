@@ -79,9 +79,11 @@ struct RequestURLBar: View {
     @ObservedObject var viewModel: RequestViewModel
     @State private var isCodeSheetPresented = false
 
+    private let barHeight: CGFloat = 36
+
     var body: some View {
         HStack(spacing: DS.Spacing.sm) {
-            // Method picker
+            // Method picker — same height as URL field
             Menu {
                 ForEach(HTTPMethod.allCases, id: \.self) { method in
                     Button(method.rawValue) {
@@ -90,19 +92,22 @@ struct RequestURLBar: View {
                     }
                 }
             } label: {
-                HStack(spacing: DS.Spacing.xs) {
+                HStack(spacing: 5) {
                     Text(viewModel.request.method.rawValue)
-                        .font(DS.Font.label)
-                        .fontWeight(.bold)
+                        .font(.system(size: 12, weight: .bold, design: .monospaced))
                         .foregroundStyle(viewModel.request.method.color)
                     Image(systemName: "chevron.down")
-                        .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(Color.dsTextSec)
+                        .font(.system(size: 8, weight: .bold))
+                        .foregroundStyle(viewModel.request.method.color.opacity(0.7))
                 }
+                .frame(height: barHeight)
                 .padding(.horizontal, DS.Spacing.sm)
-                .padding(.vertical, DS.Spacing.xs)
-                .background(viewModel.request.method.color.opacity(0.12))
+                .background(viewModel.request.method.color.opacity(0.10))
                 .clipShape(RoundedRectangle(cornerRadius: DS.Radius.sm))
+                .overlay(
+                    RoundedRectangle(cornerRadius: DS.Radius.sm)
+                        .stroke(viewModel.request.method.color.opacity(0.25), lineWidth: 1)
+                )
             }
             .menuStyle(.borderlessButton)
             .fixedSize()
@@ -110,11 +115,11 @@ struct RequestURLBar: View {
             // URL field
             ZStack(alignment: .leading) {
                 if (viewModel.request.url.url?.absoluteString ?? "").isEmpty {
-                    Text("https://api.example.com/v1/resource or paste cURL...")
+                    Text("Enter URL or paste cURL command…")
                         .font(DS.Font.urlBar)
                         .foregroundStyle(Color.dsTextTertiary)
                         .allowsHitTesting(false)
-                        .padding(.horizontal, DS.Spacing.sm)
+                        .padding(.horizontal, DS.Spacing.md)
                 }
                 TextField("", text: Binding(
                     get: { viewModel.request.url.url?.absoluteString ?? "" },
@@ -137,63 +142,62 @@ struct RequestURLBar: View {
                 .font(DS.Font.urlBar)
                 .foregroundStyle(Color.dsTextPrim)
                 .textFieldStyle(.plain)
-                .padding(.horizontal, DS.Spacing.sm)
+                .padding(.horizontal, DS.Spacing.md)
             }
             .frame(maxWidth: .infinity)
-            .frame(height: 34)
+            .frame(height: barHeight)
             .background(Color.dsSurf)
+            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.sm))
             .overlay(
                 RoundedRectangle(cornerRadius: DS.Radius.sm)
                     .stroke(Color.dsBord, lineWidth: 1)
             )
-            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.sm))
 
-            // Code snippet button
+            // Code snippet button — same height
             Button {
                 isCodeSheetPresented = true
             } label: {
-                HStack(spacing: 4) {
+                HStack(spacing: 5) {
                     Image(systemName: "chevron.left.forwardslash.chevron.right")
                         .font(.system(size: 11))
                     Text("Code")
                         .font(DS.Font.label)
                 }
                 .foregroundStyle(Color.dsTextSec)
-                .padding(.horizontal, DS.Spacing.sm)
-                .padding(.vertical, DS.Spacing.xs)
+                .frame(height: barHeight)
+                .padding(.horizontal, DS.Spacing.md)
                 .background(Color.dsSurf)
+                .clipShape(RoundedRectangle(cornerRadius: DS.Radius.sm))
                 .overlay(
                     RoundedRectangle(cornerRadius: DS.Radius.sm)
                         .stroke(Color.dsBord, lineWidth: 1)
                 )
-                .clipShape(RoundedRectangle(cornerRadius: DS.Radius.sm))
             }
             .buttonStyle(.plain)
             .sheet(isPresented: $isCodeSheetPresented) {
                 CodeSnippetView(request: viewModel.request)
             }
 
-            // Send / Cancel button
+            // Send / Cancel button — same height
             Button {
                 if viewModel.isLoading { viewModel.cancelRequest() }
                 else { viewModel.sendRequest() }
             } label: {
                 HStack(spacing: DS.Spacing.xs) {
                     if viewModel.isLoading {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 11, weight: .semibold))
+                        ProgressView().scaleEffect(0.7).tint(.white)
                         Text("Cancel")
                             .font(DS.Font.label)
                     } else {
                         Image(systemName: "paperplane.fill")
                             .font(.system(size: 11))
                         Text("Send")
-                            .font(DS.Font.label)
+                            .font(.system(size: 13, weight: .semibold))
                     }
                 }
                 .foregroundStyle(.white)
-                .padding(.horizontal, DS.Spacing.md)
-                .padding(.vertical, DS.Spacing.xs)
+                .frame(height: barHeight)
+                .padding(.horizontal, DS.Spacing.lg)
                 .background(viewModel.isLoading ? Color.dsError : Color.dsAcc)
                 .clipShape(RoundedRectangle(cornerRadius: DS.Radius.sm))
             }

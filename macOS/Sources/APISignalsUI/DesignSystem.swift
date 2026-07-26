@@ -4,24 +4,6 @@ import AppKit
 // MARK: - Color Palette
 
 public extension Color {
-    // Backgrounds
-    static let dsBackground     = Color("DSBackground",     bundle: nil)
-    static let dsSurface        = Color("DSSurface",        bundle: nil)
-    static let dsSurfaceElevated = Color("DSSurfaceElevated", bundle: nil)
-
-    // Borders
-    static let dsBorder         = Color("DSBorder",         bundle: nil)
-    static let dsBorderSubtle   = Color("DSBorderSubtle",   bundle: nil)
-
-    // Text
-    static let dsTextPrimary    = Color("DSTextPrimary",    bundle: nil)
-    static let dsTextSecondary  = Color("DSTextSecondary",  bundle: nil)
-    static let dsTextTertiary   = Color("DSTextTertiary",   bundle: nil)
-
-    // Accent
-    static let dsAccent         = Color("DSAccent",         bundle: nil)
-    static let dsAccentSubtle   = Color("DSAccentSubtle",   bundle: nil)
-
     // HTTP Methods
     static let dsGET     = Color(hex: "#3FB950")
     static let dsPOST    = Color(hex: "#F0883E")
@@ -93,6 +75,22 @@ public extension Color {
                 : NSColor(hex: "#0969DA")
         })
     }
+
+    static var dsTextTertiary: Color {
+        Color(nsColor: NSColor(name: nil) { appearance in
+            appearance.name == .darkAqua || appearance.name == .vibrantDark
+                ? NSColor(hex: "#484F58")
+                : NSColor(hex: "#8C959F")
+        })
+    }
+
+    // Aliases for clarity
+    static var dsBackground: Color { dsBg }
+    static var dsSurface: Color { dsSurf }
+    static var dsBorder: Color { dsBord }
+    static var dsTextPrimary: Color { dsTextPrim }
+    static var dsTextSecondary: Color { dsTextSec }
+    static var dsAccent: Color { dsAcc }
 
     init(hex: String) {
         let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)

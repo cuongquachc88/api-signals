@@ -326,7 +326,7 @@ struct EnvironmentQuickSwitcherDS: View {
     }
 }
 
-// MARK: - Quick Open (redesigned)
+// MARK: - Quick Open (Spotlight-style)
 
 struct QuickOpenViewDS: View {
     @ObservedObject var appState: AppState
@@ -336,7 +336,7 @@ struct QuickOpenViewDS: View {
     @State private var selectedIndex: Int = 0
 
     private var filteredRequests: [APIRequest] {
-        if searchText.isEmpty { return Array(appState.requests.prefix(20)) }
+        if searchText.isEmpty { return Array(appState.requests.prefix(12)) }
         let q = searchText.lowercased()
         return appState.requests.filter {
             $0.name.lowercased().contains(q) ||
@@ -351,110 +351,128 @@ struct QuickOpenViewDS: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Search field
-            HStack(spacing: DS.Spacing.sm) {
-                Image(systemName: "magnifyingglass")
-                    .font(.system(size: 15))
-                    .foregroundStyle(Color.dsTextSec)
-                TextField("Search requests, collections…", text: $searchText)
+            // ── Search field ──────────────────────────────────────────
+            HStack(spacing: DS.Spacing.md) {
+                Image(systemName: searchText.isEmpty ? "magnifyingglass" : "magnifyingglass")
+                    .font(.system(size: 17, weight: .medium))
+                    .foregroundStyle(searchText.isEmpty ? Color.dsTextTertiary : Color.dsAcc)
+                    .frame(width: 22)
+
+                TextField("Search requests…", text: $searchText)
                     .textFieldStyle(.plain)
-                    .font(DS.Font.labelLg)
+                    .font(.system(size: 17, weight: .regular))
                     .foregroundStyle(Color.dsTextPrim)
+
                 if !searchText.isEmpty {
                     Button { searchText = "" } label: {
                         Image(systemName: "xmark.circle.fill")
-                            .foregroundStyle(Color.dsTextSec)
+                            .font(.system(size: 16))
+                            .foregroundStyle(Color.dsTextTertiary)
                     }
                     .buttonStyle(.plain)
                 }
-                Text("Esc")
-                    .font(DS.Font.captionMono)
-                    .foregroundStyle(Color.dsTextTertiary)
-                    .padding(.horizontal, DS.Spacing.xs)
-                    .padding(.vertical, 2)
-                    .background(Color.dsBord)
-                    .clipShape(RoundedRectangle(cornerRadius: DS.Radius.xs))
-                    .onTapGesture { onDismiss() }
             }
-            .padding(DS.Spacing.lg)
+            .padding(.horizontal, DS.Spacing.xl)
+            .padding(.vertical, 18)
 
-            DSDivider()
-
-            if filteredRequests.isEmpty {
+            // ── Results ───────────────────────────────────────────────
+            if filteredRequests.isEmpty && !searchText.isEmpty {
                 VStack(spacing: DS.Spacing.sm) {
-                    Spacer()
                     Image(systemName: "magnifyingglass")
-                        .font(.system(size: 24))
+                        .font(.system(size: 28, weight: .light))
                         .foregroundStyle(Color.dsTextTertiary)
                     Text("No results for \"\(searchText)\"")
                         .font(DS.Font.body)
                         .foregroundStyle(Color.dsTextSec)
-                    Spacer()
                 }
-                .frame(height: 200)
-            } else {
+                .frame(maxWidth: .infinity)
+                .frame(height: 120)
+                .padding(.bottom, DS.Spacing.sm)
+            } else if !filteredRequests.isEmpty {
+                Divider().opacity(0.5)
+
                 ScrollViewReader { proxy in
-                    ScrollView {
+                    ScrollView(.vertical, showsIndicators: false) {
                         LazyVStack(spacing: 2) {
                             ForEach(Array(filteredRequests.enumerated()), id: \.element.id) { index, request in
-                                Button {
+                                QuickOpenRow(
+                                    request: request,
+                                    collectionName: collectionName(for: request),
+                                    isSelected: index == selectedIndex
+                                ) {
                                     appState.openTab(request)
                                     onDismiss()
-                                } label: {
-                                    HStack(spacing: DS.Spacing.md) {
-                                        MethodBadge(method: request.method)
-                                        VStack(alignment: .leading, spacing: 2) {
-                                            Text(request.name)
-                                                .font(DS.Font.label)
-                                                .foregroundStyle(Color.dsTextPrim)
-                                            Text(collectionName(for: request))
-                                                .font(DS.Font.caption)
-                                                .foregroundStyle(Color.dsTextSec)
-                                        }
-                                        Spacer()
-                                        Text(request.url.url?.host ?? "")
-                                            .font(DS.Font.captionMono)
-                                            .foregroundStyle(Color.dsTextTertiary)
-                                            .lineLimit(1)
-                                    }
-                                    .padding(.horizontal, DS.Spacing.md)
-                                    .padding(.vertical, DS.Spacing.sm)
-                                    .background(
-                                        RoundedRectangle(cornerRadius: DS.Radius.xs)
-                                            .fill(index == selectedIndex ? Color.dsAcc.opacity(0.12) : Color.clear)
-                                    )
                                 }
-                                .buttonStyle(.plain)
                                 .id(index)
                             }
                         }
-                        .padding(DS.Spacing.sm)
+                        .padding(.horizontal, DS.Spacing.sm)
+                        .padding(.vertical, DS.Spacing.xs)
                     }
-                    .onChange(of: selectedIndex) { _, newIndex in
-                        proxy.scrollTo(newIndex, anchor: .center)
+                    .frame(maxHeight: 360)
+                    .onChange(of: selectedIndex) { _, i in
+                        withAnimation(.easeInOut(duration: 0.1)) {
+                            proxy.scrollTo(i, anchor: .center)
+                        }
+                    }
+                }
+            } else {
+                // Empty search — show recent label
+                if !appState.requests.isEmpty {
+                    Divider().opacity(0.5)
+                    HStack {
+                        Text("RECENT")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(Color.dsTextTertiary)
+                            .tracking(1)
+                        Spacer()
+                    }
+                    .padding(.horizontal, DS.Spacing.xl)
+                    .padding(.top, DS.Spacing.sm)
+                    .padding(.bottom, DS.Spacing.xs)
+
+                    ScrollViewReader { proxy in
+                        ScrollView(.vertical, showsIndicators: false) {
+                            LazyVStack(spacing: 2) {
+                                ForEach(Array(filteredRequests.enumerated()), id: \.element.id) { index, request in
+                                    QuickOpenRow(
+                                        request: request,
+                                        collectionName: collectionName(for: request),
+                                        isSelected: index == selectedIndex
+                                    ) {
+                                        appState.openTab(request)
+                                        onDismiss()
+                                    }
+                                    .id(index)
+                                }
+                            }
+                            .padding(.horizontal, DS.Spacing.sm)
+                            .padding(.bottom, DS.Spacing.xs)
+                        }
+                        .frame(maxHeight: 320)
+                        .onChange(of: selectedIndex) { _, i in
+                            proxy.scrollTo(i, anchor: .center)
+                        }
                     }
                 }
             }
 
-            DSDivider()
-
-            // Hint bar
-            HStack(spacing: DS.Spacing.lg) {
-                Spacer()
-                HStack(spacing: DS.Spacing.xs) {
-                    kbdKey("↑") ; kbdKey("↓")
-                    Text("Navigate").font(DS.Font.caption).foregroundStyle(Color.dsTextTertiary)
+            // ── Footer hint bar ───────────────────────────────────────
+            if !filteredRequests.isEmpty {
+                Divider().opacity(0.4)
+                HStack(spacing: DS.Spacing.lg) {
+                    Spacer()
+                    hintItem(keys: ["↑", "↓"], label: "navigate")
+                    hintItem(keys: ["↵"], label: "open")
+                    hintItem(keys: ["esc"], label: "close")
+                    Spacer()
                 }
-                HStack(spacing: DS.Spacing.xs) {
-                    kbdKey("↵")
-                    Text("Open").font(DS.Font.caption).foregroundStyle(Color.dsTextTertiary)
-                }
-                Spacer()
+                .padding(.horizontal, DS.Spacing.lg)
+                .padding(.vertical, DS.Spacing.sm)
             }
-            .padding(.vertical, DS.Spacing.sm)
         }
-        .background(Color.dsSurf)
-        .frame(width: 580, height: 420)
+        .background(.regularMaterial)
+        .frame(width: 600)
         .onKeyPress(.downArrow) {
             selectedIndex = min(selectedIndex + 1, filteredRequests.count - 1)
             return .handled
@@ -474,13 +492,90 @@ struct QuickOpenViewDS: View {
         .onChange(of: searchText) { _, _ in selectedIndex = 0 }
     }
 
-    private func kbdKey(_ label: String) -> some View {
-        Text(label)
-            .font(DS.Font.captionMono)
-            .foregroundStyle(Color.dsTextSec)
-            .frame(width: 18, height: 18)
-            .background(Color.dsBord)
-            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.xs))
+    private func hintItem(keys: [String], label: String) -> some View {
+        HStack(spacing: 4) {
+            ForEach(keys, id: \.self) { k in
+                Text(k)
+                    .font(.system(size: 10, weight: .medium, design: .monospaced))
+                    .foregroundStyle(Color.dsTextSec)
+                    .frame(minWidth: 18, minHeight: 18)
+                    .padding(.horizontal, 4)
+                    .background(Color.primary.opacity(0.06))
+                    .clipShape(RoundedRectangle(cornerRadius: 4))
+                    .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color.primary.opacity(0.12), lineWidth: 1))
+            }
+            Text(label)
+                .font(.system(size: 11))
+                .foregroundStyle(Color.dsTextTertiary)
+        }
+    }
+}
+
+// MARK: - Quick Open Row
+
+struct QuickOpenRow: View {
+    let request: APIRequest
+    let collectionName: String
+    let isSelected: Bool
+    let onOpen: () -> Void
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: onOpen) {
+            HStack(spacing: DS.Spacing.md) {
+                // Method badge — fixed width for alignment
+                Text(request.method.rawValue)
+                    .font(.system(size: 10, weight: .bold, design: .monospaced))
+                    .foregroundStyle(request.method.color)
+                    .frame(width: 44, alignment: .center)
+                    .padding(.vertical, 3)
+                    .background(request.method.color.opacity(0.12))
+                    .clipShape(RoundedRectangle(cornerRadius: 5))
+
+                // Name + collection
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(request.name)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(isSelected ? Color.dsTextPrim : Color.dsTextPrim.opacity(0.9))
+                        .lineLimit(1)
+                    if !collectionName.isEmpty {
+                        Text(collectionName)
+                            .font(.system(size: 11))
+                            .foregroundStyle(Color.dsTextTertiary)
+                            .lineLimit(1)
+                    }
+                }
+
+                Spacer()
+
+                // Host
+                Text(request.url.url?.host ?? request.url.url?.path ?? "")
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundStyle(Color.dsTextTertiary)
+                    .lineLimit(1)
+                    .frame(maxWidth: 160, alignment: .trailing)
+
+                // Arrow indicator when selected
+                Image(systemName: "arrow.turn.down.left")
+                    .font(.system(size: 11))
+                    .foregroundStyle(isSelected ? Color.dsAcc : Color.clear)
+                    .frame(width: 16)
+            }
+            .padding(.horizontal, DS.Spacing.md)
+            .padding(.vertical, 9)
+            .background(
+                RoundedRectangle(cornerRadius: DS.Radius.sm)
+                    .fill(isSelected
+                        ? Color.dsAcc.opacity(0.13)
+                        : isHovered ? Color.primary.opacity(0.04) : Color.clear)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: DS.Radius.sm)
+                    .stroke(isSelected ? Color.dsAcc.opacity(0.3) : Color.clear, lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovered = $0 }
     }
 }
 
