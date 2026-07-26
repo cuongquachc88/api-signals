@@ -1,11 +1,17 @@
 import SwiftUI
+import AppKit
 import APISignalsCore
+
+// MARK: - Main Sidebar
 
 public struct SidebarView: View {
     @ObservedObject var appState: AppState
-    @State private var selectedTab: SidebarTab = .collections
+    @State private var collectionsExpanded = true
+    @State private var environmentsExpanded = false
+    @State private var historyExpanded = false
     @State private var isAddingWorkspace = false
     @State private var newWorkspaceName = ""
+    @State private var searchText = ""
 
     public init(appState: AppState) {
         self.appState = appState
@@ -13,8 +19,52 @@ public struct SidebarView: View {
 
     public var body: some View {
         VStack(spacing: 0) {
-            // Workspace switcher header
-            HStack {
+            workspaceHeader
+            DSDivider()
+            searchBar
+            DSDivider()
+
+            ScrollView {
+                VStack(spacing: 0) {
+                    collectionsSection
+                    DSDivider().padding(.vertical, DS.Spacing.xs)
+                    environmentsSection
+                    DSDivider().padding(.vertical, DS.Spacing.xs)
+                    historySection
+                }
+                .padding(.vertical, DS.Spacing.xs)
+            }
+
+            DSDivider()
+            bottomBar
+        }
+        .background(.ultraThinMaterial)
+        .onReceive(NotificationCenter.default.publisher(for: .showEnvironmentsTab)) { _ in
+            environmentsExpanded = true
+            collectionsExpanded = false
+            historyExpanded = false
+        }
+    }
+
+    // MARK: Workspace Header
+
+    private var workspaceHeader: some View {
+        HStack(spacing: DS.Spacing.sm) {
+            // App icon + workspace
+            HStack(spacing: DS.Spacing.sm) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: DS.Radius.sm)
+                        .fill(LinearGradient(
+                            colors: [Color(hex: "#2F81F7"), Color(hex: "#1A56CC")],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ))
+                        .frame(width: 28, height: 28)
+                    Image(systemName: "antenna.radiowaves.left.and.right")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(.white)
+                }
+
                 Menu {
                     ForEach(appState.workspaces) { workspace in
                         Button {
@@ -29,82 +79,229 @@ public struct SidebarView: View {
                         }
                     }
                     Divider()
-                    Button("New Workspace...") { isAddingWorkspace = true }
+                    Button("New Workspace…") { isAddingWorkspace = true }
                 } label: {
                     HStack(spacing: 4) {
-                        Image(systemName: "square.stack.3d.up.fill")
-                            .foregroundStyle(.blue)
                         Text(appState.selectedWorkspace?.name ?? "Workspace")
-                            .fontWeight(.semibold)
+                            .font(DS.Font.label)
+                            .foregroundStyle(Color.dsTextPrim)
                             .lineLimit(1)
                         Image(systemName: "chevron.down")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
+                            .font(.system(size: 9, weight: .semibold))
+                            .foregroundStyle(Color.dsTextSec)
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .buttonStyle(.plain)
             }
-            .padding(.horizontal)
-            .padding(.vertical, 8)
-            .background(Color(nsColor: .controlBackgroundColor))
 
+            Spacer()
+
+            Button { NotificationCenter.default.post(name: .showQuickOpen, object: nil) } label: {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(Color.dsTextSec)
+                    .frame(width: 28, height: 28)
+                    .background(Color.dsBord.opacity(0.5))
+                    .clipShape(RoundedRectangle(cornerRadius: DS.Radius.xs))
+            }
+            .buttonStyle(.plain)
+            .help("Quick Open (⌘P)")
+        }
+        .padding(.horizontal, DS.Spacing.md)
+        .padding(.vertical, DS.Spacing.sm)
+        .frame(height: 50)
+
+        // New workspace inline
+        .overlay(alignment: .bottom) {
             if isAddingWorkspace {
-                HStack {
+                HStack(spacing: DS.Spacing.sm) {
                     TextField("Workspace name", text: $newWorkspaceName)
                         .textFieldStyle(.roundedBorder)
+                        .font(DS.Font.body)
                         .onSubmit { createWorkspace() }
                     Button("Add") { createWorkspace() }
                         .buttonStyle(.borderedProminent)
-                        .disabled(newWorkspaceName.trimmingCharacters(in: .whitespaces).isEmpty)
-                    Button("Cancel") {
+                        .controlSize(.small)
+                    Button("✕") {
                         isAddingWorkspace = false
                         newWorkspaceName = ""
                     }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(.plain)
+                    .foregroundStyle(Color.dsTextSec)
                 }
-                .padding(.horizontal)
-                .padding(.bottom, 4)
+                .padding(DS.Spacing.sm)
+                .background(.ultraThickMaterial)
+                .clipShape(RoundedRectangle(cornerRadius: DS.Radius.sm))
+                .padding(.horizontal, DS.Spacing.sm)
+                .offset(y: 44)
+                .zIndex(10)
             }
+        }
+    }
 
-            Divider()
+    // MARK: Search
 
-            Picker("", selection: $selectedTab) {
-                ForEach(SidebarTab.allCases) { tab in
-                    Text(tab.rawValue).tag(tab)
+    private var searchBar: some View {
+        HStack(spacing: DS.Spacing.sm) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 11))
+                .foregroundStyle(Color.dsTextTertiary)
+            TextField("Search requests…", text: $searchText)
+                .font(DS.Font.body)
+                .textFieldStyle(.plain)
+            if !searchText.isEmpty {
+                Button { searchText = "" } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 11))
+                        .foregroundStyle(Color.dsTextTertiary)
                 }
+                .buttonStyle(.plain)
             }
-            .pickerStyle(.segmented)
-            .padding()
+        }
+        .padding(.horizontal, DS.Spacing.md)
+        .padding(.vertical, DS.Spacing.sm)
+        .frame(height: 36)
+    }
 
-            switch selectedTab {
-            case .collections:
-                CollectionsSidebar(appState: appState)
-            case .environments:
-                EnvironmentsSidebar(appState: appState)
-            case .history:
-                HistorySidebar(appState: appState)
+    // MARK: Collections Section
+
+    private var collectionsSection: some View {
+        VStack(spacing: 0) {
+            // Section header
+            Button {
+                withAnimation(.easeInOut(duration: 0.18)) {
+                    collectionsExpanded.toggle()
+                }
+            } label: {
+                HStack(spacing: DS.Spacing.xs) {
+                    Image(systemName: collectionsExpanded ? "chevron.down" : "chevron.right")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(Color.dsTextSec)
+                        .frame(width: 12)
+                    Text("COLLECTIONS")
+                        .font(DS.Font.labelSm)
+                        .foregroundStyle(Color.dsTextSec)
+                        .tracking(0.5)
+                    Spacer()
+                    Button {
+                        Task { await appState.createCollection(name: "New Collection") }
+                    } label: {
+                        Image(systemName: "folder.badge.plus")
+                            .font(.system(size: 11))
+                            .foregroundStyle(Color.dsTextSec)
+                    }
+                    .buttonStyle(.plain)
+                    .help("New Collection")
+                }
+                .padding(.horizontal, DS.Spacing.md)
+                .padding(.vertical, DS.Spacing.xs)
+                .frame(height: 28)
             }
+            .buttonStyle(.plain)
 
-            if let environment = appState.activeEnvironment {
-                HStack {
-                    Image(systemName: "circle.fill")
-                        .font(.caption2)
-                        .foregroundStyle(.green)
-                    Text(environment.name)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+            if collectionsExpanded {
+                CollectionsSidebarNew(appState: appState, searchText: searchText)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+    }
+
+    // MARK: Environments Section
+
+    private var environmentsSection: some View {
+        VStack(spacing: 0) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.18)) {
+                    environmentsExpanded.toggle()
+                }
+            } label: {
+                HStack(spacing: DS.Spacing.xs) {
+                    Image(systemName: environmentsExpanded ? "chevron.down" : "chevron.right")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(Color.dsTextSec)
+                        .frame(width: 12)
+                    Text("ENVIRONMENTS")
+                        .font(DS.Font.labelSm)
+                        .foregroundStyle(Color.dsTextSec)
+                        .tracking(0.5)
                     Spacer()
                 }
-                .padding(.horizontal)
-                .padding(.vertical, 6)
-                .background(Color(nsColor: .controlBackgroundColor))
+                .padding(.horizontal, DS.Spacing.md)
+                .padding(.vertical, DS.Spacing.xs)
+                .frame(height: 28)
+            }
+            .buttonStyle(.plain)
+
+            if environmentsExpanded {
+                EnvironmentsSidebarNew(appState: appState)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
-        .navigationTitle("API Signals")
-        .onReceive(NotificationCenter.default.publisher(for: .showEnvironmentsTab)) { _ in
-            selectedTab = .environments
+    }
+
+    // MARK: History Section
+
+    private var historySection: some View {
+        VStack(spacing: 0) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.18)) {
+                    historyExpanded.toggle()
+                }
+            } label: {
+                HStack(spacing: DS.Spacing.xs) {
+                    Image(systemName: historyExpanded ? "chevron.down" : "chevron.right")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(Color.dsTextSec)
+                        .frame(width: 12)
+                    Text("HISTORY")
+                        .font(DS.Font.labelSm)
+                        .foregroundStyle(Color.dsTextSec)
+                        .tracking(0.5)
+                    Spacer()
+                    if !appState.history.isEmpty {
+                        Button {
+                            Task { await appState.clearHistory() }
+                        } label: {
+                            Image(systemName: "trash")
+                                .font(.system(size: 11))
+                                .foregroundStyle(Color.dsTextSec)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Clear History")
+                    }
+                }
+                .padding(.horizontal, DS.Spacing.md)
+                .padding(.vertical, DS.Spacing.xs)
+                .frame(height: 28)
+            }
+            .buttonStyle(.plain)
+
+            if historyExpanded {
+                HistorySidebarNew(appState: appState)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+            }
         }
+    }
+
+    // MARK: Bottom Bar
+
+    private var bottomBar: some View {
+        HStack(spacing: DS.Spacing.sm) {
+            Circle()
+                .fill(appState.activeEnvironment != nil ? Color.dsGET : Color.dsTextSec)
+                .frame(width: 6, height: 6)
+            Text(appState.activeEnvironment?.name ?? "No Environment")
+                .font(DS.Font.caption)
+                .foregroundStyle(Color.dsTextSec)
+                .lineLimit(1)
+            Spacer()
+            Text("\(appState.requests.count) requests")
+                .font(DS.Font.caption)
+                .foregroundStyle(Color.dsTextTertiary)
+        }
+        .padding(.horizontal, DS.Spacing.md)
+        .padding(.vertical, DS.Spacing.sm)
+        .frame(height: 32)
     }
 
     private func createWorkspace() {
@@ -112,130 +309,41 @@ public struct SidebarView: View {
         guard !name.isEmpty else { return }
         isAddingWorkspace = false
         newWorkspaceName = ""
-        Task {
-            await appState.createWorkspace(name: name)
-        }
+        Task { await appState.createWorkspace(name: name) }
     }
 }
 
-enum SidebarTab: String, CaseIterable, Identifiable {
-    case collections = "Collections"
-    case environments = "Environments"
-    case history = "History"
+// MARK: - Collections Sidebar (redesigned)
 
-    var id: String { rawValue }
-}
-
-struct CollectionsSidebar: View {
+struct CollectionsSidebarNew: View {
     @ObservedObject var appState: AppState
+    let searchText: String
     @State private var renamingRequest: APIRequest?
     @State private var renameValue = ""
     @State private var renamingCollection: Collection?
     @State private var renameCollectionValue = ""
-    @State private var isAddingCollection = false
-    @State private var newCollectionName = ""
+    @State private var expandedCollections: Set<UUID> = []
+    @State private var addingRequestInCollection: UUID?
 
     var body: some View {
-        VStack(spacing: 0) {
-            List(selection: $appState.selectedRequest) {
-                ForEach(appState.collections) { collection in
-                    Section {
-                        ForEach(appState.requests.filter { $0.collectionId == collection.id }) { request in
-                            RequestRow(request: request)
-                                .tag(request)
-                                .contextMenu {
-                                    Button("Rename") {
-                                        renamingRequest = request
-                                        renameValue = request.name
-                                    }
-                                    Divider()
-                                    Button("Delete", role: .destructive) {
-                                        Task {
-                                            await appState.deleteRequest(request)
-                                        }
-                                    }
-                                }
-                        }
-                        Button("+ New Request") {
-                            Task {
-                                await appState.createNewRequest(in: collection.id)
-                            }
-                        }
-                        .buttonStyle(.link)
-                        .font(.caption)
-                    } header: {
-                        HStack {
-                            Text(collection.name)
-                                .font(.headline)
-                            Spacer()
-                            Menu {
-                                Button("Rename Collection") {
-                                    renamingCollection = collection
-                                    renameCollectionValue = collection.name
-                                }
-                                Divider()
-                                Button("Delete Collection", role: .destructive) {
-                                    Task {
-                                        await appState.deleteCollection(collection)
-                                    }
-                                }
-                            } label: {
-                                Image(systemName: "ellipsis")
-                                    .foregroundStyle(.secondary)
-                            }
-                            .menuStyle(.borderlessButton)
-                            .frame(width: 20)
-                        }
-                    }
-                }
-            }
-            .listStyle(.sidebar)
-
-            Divider()
-
-            if isAddingCollection {
-                HStack {
-                    TextField("Collection name", text: $newCollectionName)
-                        .textFieldStyle(.roundedBorder)
-                        .onSubmit {
-                            addCollection()
-                        }
-                    Button("Add") {
-                        addCollection()
-                    }
-                    .buttonStyle(.borderedProminent)
-                    Button("Cancel", role: .cancel) {
-                        isAddingCollection = false
-                        newCollectionName = ""
-                    }
-                    .buttonStyle(.borderless)
-                }
-                .padding(8)
-            } else {
-                Button("+ New Collection") {
-                    isAddingCollection = true
-                }
-                .buttonStyle(.borderless)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(8)
+        VStack(spacing: 2) {
+            ForEach(appState.collections) { collection in
+                collectionGroup(collection)
             }
         }
+        .padding(.horizontal, DS.Spacing.xs)
         .alert("Rename Request", isPresented: Binding(
             get: { renamingRequest != nil },
             set: { if !$0 { renamingRequest = nil } }
         )) {
             TextField("Name", text: $renameValue)
             Button("Save") {
-                if let request = renamingRequest {
-                    Task {
-                        await appState.renameRequest(request, newName: renameValue)
-                    }
+                if let req = renamingRequest {
+                    Task { await appState.renameRequest(req, newName: renameValue) }
                 }
                 renamingRequest = nil
             }
-            Button("Cancel", role: .cancel) {
-                renamingRequest = nil
-            }
+            Button("Cancel", role: .cancel) { renamingRequest = nil }
         }
         .alert("Rename Collection", isPresented: Binding(
             get: { renamingCollection != nil },
@@ -243,111 +351,233 @@ struct CollectionsSidebar: View {
         )) {
             TextField("Name", text: $renameCollectionValue)
             Button("Save") {
-                if let collection = renamingCollection {
-                    Task {
-                        await appState.renameCollection(collection, newName: renameCollectionValue)
-                    }
+                if let col = renamingCollection {
+                    Task { await appState.renameCollection(col, newName: renameCollectionValue) }
                 }
                 renamingCollection = nil
             }
-            Button("Cancel", role: .cancel) {
-                renamingCollection = nil
+            Button("Cancel", role: .cancel) { renamingCollection = nil }
+        }
+    }
+
+    private func filteredRequests(for collection: Collection) -> [APIRequest] {
+        let all = appState.requests.filter { $0.collectionId == collection.id }
+        if searchText.isEmpty { return all }
+        let q = searchText.lowercased()
+        return all.filter {
+            $0.name.lowercased().contains(q) ||
+            $0.method.rawValue.lowercased().contains(q) ||
+            ($0.url.url?.absoluteString ?? "").lowercased().contains(q)
+        }
+    }
+
+    @ViewBuilder
+    private func collectionGroup(_ collection: Collection) -> some View {
+        let isExpanded = expandedCollections.contains(collection.id)
+        let requests = filteredRequests(for: collection)
+
+        VStack(spacing: 0) {
+            // Collection header row
+            HStack(spacing: DS.Spacing.xs) {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.15)) {
+                        if isExpanded { expandedCollections.remove(collection.id) }
+                        else { expandedCollections.insert(collection.id) }
+                    }
+                } label: {
+                    HStack(spacing: DS.Spacing.xs) {
+                        Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                            .font(.system(size: 9, weight: .semibold))
+                            .foregroundStyle(Color.dsTextSec)
+                            .frame(width: 10)
+                        Image(systemName: "folder.fill")
+                            .font(.system(size: 11))
+                            .foregroundStyle(Color.dsAcc)
+                        Text(collection.name)
+                            .font(DS.Font.label)
+                            .foregroundStyle(Color.dsTextPrim)
+                            .lineLimit(1)
+                        Spacer()
+                        Text("\(requests.count)")
+                            .font(DS.Font.captionMono)
+                            .foregroundStyle(Color.dsTextTertiary)
+                    }
+                }
+                .buttonStyle(.plain)
+
+                Menu {
+                    Button("New Request") {
+                        Task { await appState.createNewRequest(in: collection.id) }
+                        expandedCollections.insert(collection.id)
+                    }
+                    Divider()
+                    Button("Rename") {
+                        renamingCollection = collection
+                        renameCollectionValue = collection.name
+                    }
+                    Divider()
+                    Button("Delete", role: .destructive) {
+                        Task { await appState.deleteCollection(collection) }
+                    }
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 11))
+                        .foregroundStyle(Color.dsTextTertiary)
+                        .frame(width: 20, height: 20)
+                }
+                .menuStyle(.borderlessButton)
+                .frame(width: 20)
+            }
+            .padding(.horizontal, DS.Spacing.sm)
+            .padding(.vertical, 5)
+            .background(Color.dsBord.opacity(0.25))
+            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.xs))
+
+            // Requests
+            if isExpanded {
+                VStack(spacing: 1) {
+                    ForEach(requests) { request in
+                        RequestRowNew(
+                            request: request,
+                            isSelected: appState.selectedRequest?.id == request.id
+                        )
+                        .onTapGesture {
+                            appState.selectedRequest = request
+                        }
+                        .contextMenu {
+                            Button("Open in New Tab") {
+                                appState.openTab(request)
+                            }
+                            Button("Rename") {
+                                renamingRequest = request
+                                renameValue = request.name
+                            }
+                            Divider()
+                            Button("Delete", role: .destructive) {
+                                Task { await appState.deleteRequest(request) }
+                            }
+                        }
+                    }
+
+                    // Add request button
+                    Button {
+                        Task { await appState.createNewRequest(in: collection.id) }
+                    } label: {
+                        HStack(spacing: DS.Spacing.xs) {
+                            Spacer().frame(width: 10)
+                            Image(systemName: "plus")
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundStyle(Color.dsTextTertiary)
+                            Text("New Request")
+                                .font(DS.Font.caption)
+                                .foregroundStyle(Color.dsTextTertiary)
+                            Spacer()
+                        }
+                        .padding(.vertical, 5)
+                        .padding(.horizontal, DS.Spacing.sm)
+                    }
+                    .buttonStyle(.plain)
+                    .dsRowHover()
+                }
+                .padding(.leading, DS.Spacing.sm)
+            }
+        }
+        .onAppear {
+            // Auto-expand collection containing selected request
+            if appState.requests.filter({ $0.collectionId == collection.id })
+                .contains(where: { $0.id == appState.selectedRequest?.id }) {
+                expandedCollections.insert(collection.id)
             }
         }
     }
-
-    private func addCollection() {
-        let name = newCollectionName.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !name.isEmpty else { return }
-        Task {
-            await appState.createCollection(name: name)
-        }
-        newCollectionName = ""
-        isAddingCollection = false
-    }
 }
 
-struct RequestRow: View {
+// MARK: - Request Row (redesigned)
+
+struct RequestRowNew: View {
     let request: APIRequest
+    let isSelected: Bool
+    @State private var isHovered = false
 
     var body: some View {
-        HStack {
-            Text(request.method.rawValue)
-                .font(.caption)
-                .fontWeight(.semibold)
-                .foregroundStyle(methodColor)
-                .frame(width: 48, alignment: .leading)
+        HStack(spacing: DS.Spacing.sm) {
+            // Active indicator
+            RoundedRectangle(cornerRadius: 2)
+                .fill(isSelected ? Color.dsAcc : Color.clear)
+                .frame(width: 2, height: 24)
+
+            MethodBadge(method: request.method, compact: true)
+
             Text(request.name)
+                .font(DS.Font.body)
+                .foregroundStyle(isSelected ? Color.dsTextPrim : Color(nsColor: .labelColor).opacity(0.85))
                 .lineLimit(1)
             Spacer()
         }
-    }
-
-    private var methodColor: Color {
-        switch request.method {
-        case .get: return .blue
-        case .post: return .green
-        case .put: return .orange
-        case .delete: return .red
-        case .patch: return .purple
-        default: return .gray
-        }
+        .padding(.vertical, 5)
+        .padding(.trailing, DS.Spacing.sm)
+        .background(
+            RoundedRectangle(cornerRadius: DS.Radius.xs)
+                .fill(isSelected
+                    ? Color.dsAcc.opacity(0.12)
+                    : isHovered ? Color.dsBord.opacity(0.4) : Color.clear)
+        )
+        .onHover { isHovered = $0 }
     }
 }
 
-struct EnvironmentsSidebar: View {
+// MARK: - Environments Sidebar (redesigned)
+
+struct EnvironmentsSidebarNew: View {
     @ObservedObject var appState: AppState
     @State private var newEnvironmentName = ""
     @State private var editingEnvironment: WorkspaceEnvironment?
+    @State private var isAdding = false
 
     var body: some View {
-        VStack(spacing: 0) {
-            List {
-                ForEach(appState.environments) { (environment: WorkspaceEnvironment) in
-                    HStack {
-                        VStack(alignment: .leading) {
-                            Text(environment.name)
-                            Text("\(environment.variables.count) variable\(environment.variables.count == 1 ? "" : "s")")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
+        VStack(spacing: 2) {
+            ForEach(appState.environments) { env in
+                envRow(env)
+            }
+
+            if isAdding {
+                HStack(spacing: DS.Spacing.xs) {
+                    TextField("Environment name", text: $newEnvironmentName)
+                        .textFieldStyle(.roundedBorder)
+                        .font(DS.Font.body)
+                        .controlSize(.small)
+                        .onSubmit { addEnvironment() }
+                    Button("Add") { addEnvironment() }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                        .disabled(newEnvironmentName.trimmingCharacters(in: .whitespaces).isEmpty)
+                    Button("✕") { isAdding = false; newEnvironmentName = "" }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(Color.dsTextSec)
+                }
+                .padding(.horizontal, DS.Spacing.sm)
+                .padding(.vertical, DS.Spacing.xs)
+            } else {
+                Button {
+                    isAdding = true
+                } label: {
+                    HStack(spacing: DS.Spacing.xs) {
+                        Image(systemName: "plus")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(Color.dsTextTertiary)
+                        Text("New Environment")
+                            .font(DS.Font.caption)
+                            .foregroundStyle(Color.dsTextTertiary)
                         Spacer()
-                        if environment.isActive {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundStyle(.blue)
-                        }
-                        Button {
-                            editingEnvironment = environment
-                        } label: {
-                            Image(systemName: "pencil")
-                                .foregroundStyle(.secondary)
-                        }
-                        .buttonStyle(.borderless)
                     }
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        Task {
-                            try? await appState.environmentRepository.setActive(id: environment.id, workspaceId: environment.workspaceId)
-                            await appState.selectWorkspace(appState.selectedWorkspace!)
-                        }
-                    }
+                    .padding(.vertical, 5)
+                    .padding(.horizontal, DS.Spacing.md)
                 }
+                .buttonStyle(.plain)
+                .dsRowHover()
             }
-
-            Divider()
-
-            HStack {
-                TextField("New environment", text: $newEnvironmentName)
-                    .textFieldStyle(.roundedBorder)
-                    .onSubmit { addEnvironment() }
-                Button("Add") {
-                    addEnvironment()
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(newEnvironmentName.trimmingCharacters(in: .whitespaces).isEmpty)
-            }
-            .padding(8)
         }
+        .padding(.horizontal, DS.Spacing.xs)
         .sheet(item: $editingEnvironment) { env in
             EnvironmentEditorSheet(environment: env) { updated in
                 Task {
@@ -361,6 +591,53 @@ struct EnvironmentsSidebar: View {
         }
     }
 
+    @ViewBuilder
+    private func envRow(_ env: WorkspaceEnvironment) -> some View {
+        HStack(spacing: DS.Spacing.sm) {
+            Circle()
+                .fill(env.isActive ? Color.dsGET : Color.dsTextTertiary)
+                .frame(width: 6, height: 6)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(env.name)
+                    .font(DS.Font.body)
+                    .foregroundStyle(Color.dsTextPrim)
+                Text("\(env.variables.count) var\(env.variables.count == 1 ? "" : "s")")
+                    .font(DS.Font.caption)
+                    .foregroundStyle(Color.dsTextTertiary)
+            }
+            Spacer()
+            if env.isActive {
+                Text("Active")
+                    .font(DS.Font.captionMono)
+                    .foregroundStyle(Color.dsGET)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 2)
+                    .background(Color.dsGET.opacity(0.12))
+                    .clipShape(Capsule())
+            }
+            Button { editingEnvironment = env } label: {
+                Image(systemName: "pencil")
+                    .font(.system(size: 11))
+                    .foregroundStyle(Color.dsTextSec)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, DS.Spacing.md)
+        .padding(.vertical, DS.Spacing.sm)
+        .background(
+            RoundedRectangle(cornerRadius: DS.Radius.xs)
+                .fill(env.isActive ? Color.dsAcc.opacity(0.08) : Color.clear)
+        )
+        .contentShape(Rectangle())
+        .onTapGesture {
+            Task {
+                try? await appState.environmentRepository.setActive(id: env.id, workspaceId: env.workspaceId)
+                await appState.selectWorkspace(appState.selectedWorkspace!)
+            }
+        }
+        .dsRowHover()
+    }
+
     private func addEnvironment() {
         let name = newEnvironmentName.trimmingCharacters(in: .whitespaces)
         guard !name.isEmpty, let workspace = appState.selectedWorkspace else { return }
@@ -368,10 +645,106 @@ struct EnvironmentsSidebar: View {
             let env = WorkspaceEnvironment(workspaceId: workspace.id, name: name)
             _ = try? await appState.environmentRepository.create(env)
             newEnvironmentName = ""
+            isAdding = false
             await appState.selectWorkspace(workspace)
         }
     }
 }
+
+// MARK: - History Sidebar (redesigned)
+
+struct HistorySidebarNew: View {
+    @ObservedObject var appState: AppState
+
+    private var grouped: [(String, [HistoryEntry])] {
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: Date())
+        let yesterday = cal.date(byAdding: .day, value: -1, to: today)!
+
+        var groups: [String: [HistoryEntry]] = [:]
+        for entry in appState.history {
+            let d = cal.startOfDay(for: entry.timestamp)
+            let label: String
+            if d == today { label = "Today" }
+            else if d == yesterday { label = "Yesterday" }
+            else { label = entry.timestamp.formatted(date: .abbreviated, time: .omitted) }
+            groups[label, default: []].append(entry)
+        }
+        return groups.sorted { $0.value[0].timestamp > $1.value[0].timestamp }
+    }
+
+    var body: some View {
+        if appState.history.isEmpty {
+            HStack {
+                Text("No history yet")
+                    .font(DS.Font.body)
+                    .foregroundStyle(Color.dsTextTertiary)
+                    .padding(.horizontal, DS.Spacing.md)
+                    .padding(.vertical, DS.Spacing.sm)
+                Spacer()
+            }
+        } else {
+            VStack(spacing: 0) {
+                ForEach(grouped, id: \.0) { (label, entries) in
+                    HStack {
+                        Text(label)
+                            .font(DS.Font.captionMono)
+                            .foregroundStyle(Color.dsTextTertiary)
+                            .padding(.horizontal, DS.Spacing.md)
+                            .padding(.top, DS.Spacing.xs)
+                        Spacer()
+                    }
+                    ForEach(entries) { entry in
+                        historyRow(entry)
+                    }
+                }
+            }
+            .padding(.horizontal, DS.Spacing.xs)
+        }
+    }
+
+    @ViewBuilder
+    private func historyRow(_ entry: HistoryEntry) -> some View {
+        HStack(spacing: DS.Spacing.sm) {
+            MethodBadge(method: entry.request.method, compact: true)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(entry.request.url.url?.path ?? entry.request.name)
+                    .font(DS.Font.bodyMono)
+                    .foregroundStyle(Color.dsTextPrim)
+                    .lineLimit(1)
+                if let response = entry.response {
+                    HStack(spacing: DS.Spacing.xs) {
+                        Text("\(response.statusCode)")
+                            .font(DS.Font.captionMono)
+                            .foregroundStyle(statusCodeColor(response.statusCode))
+                        Text("·")
+                            .foregroundStyle(Color.dsTextTertiary)
+                        Text(entry.timestamp.formatted(date: .omitted, time: .shortened))
+                            .font(DS.Font.caption)
+                            .foregroundStyle(Color.dsTextTertiary)
+                    }
+                }
+            }
+            Spacer()
+        }
+        .padding(.horizontal, DS.Spacing.sm)
+        .padding(.vertical, 5)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            appState.selectedRequest = entry.request
+        }
+        .contextMenu {
+            Button("Load Request") { appState.selectedRequest = entry.request }
+            Divider()
+            Button("Delete", role: .destructive) {
+                Task { await appState.deleteHistoryEntry(entry) }
+            }
+        }
+        .dsRowHover()
+    }
+}
+
+// MARK: - EnvironmentEditorSheet (kept functional)
 
 struct EnvironmentEditorSheet: View {
     @State private var environment: WorkspaceEnvironment
@@ -386,139 +759,75 @@ struct EnvironmentEditorSheet: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            // Header
             HStack {
-                Text("Edit: \(environment.name)")
-                    .font(.headline)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(environment.name)
+                        .font(DS.Font.title)
+                        .foregroundStyle(Color.dsTextPrim)
+                    Text("\(environment.variables.count) variables")
+                        .font(DS.Font.caption)
+                        .foregroundStyle(Color.dsTextSec)
+                }
                 Spacer()
                 Button("Cancel") { onDismiss() }
-                    .buttonStyle(.borderless)
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
                 Button("Save") { onSave(environment) }
                     .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
             }
-            .padding()
+            .padding(DS.Spacing.lg)
 
-            Divider()
+            DSDivider()
 
+            // Variable rows
             List {
                 ForEach($environment.variables) { $variable in
-                    HStack(spacing: 8) {
+                    HStack(spacing: DS.Spacing.sm) {
                         Toggle("", isOn: $variable.isEnabled)
                             .toggleStyle(.checkbox)
                             .labelsHidden()
                         TextField("Key", text: $variable.key)
                             .textFieldStyle(.roundedBorder)
+                            .font(DS.Font.bodyMono)
                         if variable.type == .secret {
                             SecureField("Value", text: $variable.value)
                                 .textFieldStyle(.roundedBorder)
+                                .font(DS.Font.bodyMono)
                         } else {
                             TextField("Value", text: $variable.value)
                                 .textFieldStyle(.roundedBorder)
+                                .font(DS.Font.bodyMono)
                         }
                         Picker("", selection: $variable.type) {
-                            Text("Default").tag(Variable.VariableType.default)
-                            Text("Secret").tag(Variable.VariableType.secret)
+                            Image(systemName: "text.alignleft").tag(Variable.VariableType.`default`)
+                            Image(systemName: "eye.slash").tag(Variable.VariableType.secret)
                         }
-                        .frame(width: 90)
-                        .labelsHidden()
-                        Button(role: .destructive) {
+                        .pickerStyle(.segmented)
+                        .frame(width: 64)
+                        Button {
                             environment.variables.removeAll { $0.id == variable.id }
                         } label: {
-                            Image(systemName: "trash")
-                                .foregroundStyle(.red)
+                            Image(systemName: "minus.circle.fill")
+                                .foregroundStyle(Color.dsError)
                         }
-                        .buttonStyle(.borderless)
+                        .buttonStyle(.plain)
                     }
                 }
 
-                Button("+ Add Variable") {
+                Button {
                     environment.variables.append(Variable(key: "", value: ""))
+                } label: {
+                    Label("Add Variable", systemImage: "plus.circle")
+                        .font(DS.Font.body)
+                        .foregroundStyle(Color.dsAcc)
                 }
-                .buttonStyle(.link)
+                .buttonStyle(.plain)
             }
+            .listStyle(.plain)
         }
+        .background(Color.dsSurf)
         .frame(minWidth: 600, minHeight: 400)
-    }
-}
-
-struct HistorySidebar: View {
-    @ObservedObject var appState: AppState
-    @State private var showClearConfirmation = false
-
-    var body: some View {
-        VStack(spacing: 0) {
-            List {
-                ForEach(appState.history) { entry in
-                    VStack(alignment: .leading, spacing: 2) {
-                        HStack {
-                            Text(entry.request.method.rawValue)
-                                .font(.caption2)
-                                .fontWeight(.semibold)
-                                .foregroundStyle(methodColor(entry.request.method))
-                            Text(entry.request.name)
-                                .font(.caption)
-                                .lineLimit(1)
-                        }
-                        HStack {
-                            if let response = entry.response {
-                                Text("\(response.statusCode)")
-                                    .font(.caption2)
-                                    .foregroundStyle(response.statusCode < 400 ? .green : .red)
-                                Text(formatTime(response.timing.total))
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                            }
-                            Spacer()
-                            Text(entry.timestamp, style: .relative)
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        appState.selectedRequest = entry.request
-                    }
-                    .contextMenu {
-                        Button("Delete") {
-                            Task {
-                                await appState.deleteHistoryEntry(entry)
-                            }
-                        }
-                    }
-                }
-            }
-
-            if !appState.history.isEmpty {
-                Divider()
-                Button("Clear All History") {
-                    showClearConfirmation = true
-                }
-                .foregroundStyle(.red)
-                .buttonStyle(.borderless)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(8)
-                .confirmationDialog("Clear all history?", isPresented: $showClearConfirmation) {
-                    Button("Clear All", role: .destructive) {
-                        Task {
-                            await appState.clearHistory()
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    private func formatTime(_ interval: TimeInterval) -> String {
-        String(format: "%.0fms", interval * 1000)
-    }
-
-    private func methodColor(_ method: HTTPMethod) -> Color {
-        switch method {
-        case .get: return .blue
-        case .post: return .green
-        case .put: return .orange
-        case .delete: return .red
-        case .patch: return .purple
-        default: return .gray
-        }
     }
 }
