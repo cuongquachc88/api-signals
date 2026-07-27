@@ -43,12 +43,12 @@ public struct RequestEditorView: View {
                 requestTabContent
             }
             .frame(minHeight: 260)
-            .background(Color.dsBg)
+            .background(Color.dsSurf)
 
             // Bottom: response
             ResponseView(viewModel: viewModel)
                 .frame(minHeight: 180)
-                .background(Color.dsBg)
+                .background(Color.dsSurf)
         }
     }
 
@@ -206,7 +206,7 @@ struct RequestURLBar: View {
         }
         .padding(.horizontal, DS.Spacing.lg)
         .padding(.vertical, DS.Spacing.sm)
-        .background(Color.dsBg)
+        .background(Color.dsSurf)
     }
 }
 
@@ -224,7 +224,7 @@ struct RequestTabBar: View {
             Spacer()
         }
         .padding(.horizontal, DS.Spacing.lg)
-        .background(.ultraThinMaterial)
+        .background(Color.dsSurf)
     }
 
     @ViewBuilder

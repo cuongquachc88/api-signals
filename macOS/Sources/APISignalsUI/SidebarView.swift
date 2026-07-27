@@ -38,7 +38,7 @@ public struct SidebarView: View {
             DSDivider()
             bottomBar
         }
-        .background(.ultraThinMaterial)
+        .background(Color.dsSurfEl)
         .onReceive(NotificationCenter.default.publisher(for: .showEnvironmentsTab)) { _ in
             environmentsExpanded = true
             collectionsExpanded = false

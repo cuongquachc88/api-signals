@@ -33,7 +33,7 @@ struct ResponseView: View {
                 placeholderView
             }
         }
-        .background(Color.dsBg)
+        .background(Color.dsSurf)
     }
 
     // MARK: Header

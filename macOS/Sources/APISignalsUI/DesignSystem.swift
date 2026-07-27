@@ -24,7 +24,7 @@ public extension Color {
         Color(nsColor: NSColor(name: nil) { appearance in
             appearance.name == .darkAqua || appearance.name == .vibrantDark
                 ? NSColor(hex: "#0D1117")
-                : NSColor(hex: "#F6F8FA")
+                : NSColor(hex: "#ECEEF1")  // slightly cool grey — main canvas
         })
     }
 
@@ -32,7 +32,7 @@ public extension Color {
         Color(nsColor: NSColor(name: nil) { appearance in
             appearance.name == .darkAqua || appearance.name == .vibrantDark
                 ? NSColor(hex: "#161B22")
-                : NSColor(hex: "#FFFFFF")
+                : NSColor(hex: "#FFFFFF")  // card / panel surface
         })
     }
 
@@ -40,7 +40,7 @@ public extension Color {
         Color(nsColor: NSColor(name: nil) { appearance in
             appearance.name == .darkAqua || appearance.name == .vibrantDark
                 ? NSColor(hex: "#21262D")
-                : NSColor(hex: "#F0F2F5")
+                : NSColor(hex: "#E6E8EB")  // element inside surface
         })
     }
 
@@ -48,7 +48,7 @@ public extension Color {
         Color(nsColor: NSColor(name: nil) { appearance in
             appearance.name == .darkAqua || appearance.name == .vibrantDark
                 ? NSColor(hex: "#30363D")
-                : NSColor(hex: "#D0D7DE")
+                : NSColor(hex: "#C4C8CE")  // stronger border in light mode
         })
     }
 

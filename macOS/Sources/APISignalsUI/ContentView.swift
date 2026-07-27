@@ -190,7 +190,7 @@ struct TabBarView: View {
             .padding(.horizontal, DS.Spacing.xs)
         }
         .frame(height: 38)
-        .background(.ultraThinMaterial)
+        .background(Color.dsSurf)
     }
 }
 
