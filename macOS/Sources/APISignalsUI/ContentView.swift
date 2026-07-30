@@ -316,7 +316,7 @@ struct EnvironmentQuickSwitcherDS: View {
                     .font(.system(size: 9, weight: .semibold))
                     .foregroundStyle(Color.dsTextSec)
             }
-            .padding(.horizontal, DS.Spacing.sm)
+            .padding(.horizontal, DS.Spacing.lg)
             .padding(.vertical, DS.Spacing.xs)
             .background(Color.dsBord.opacity(0.5))
             .clipShape(RoundedRectangle(cornerRadius: DS.Radius.sm))

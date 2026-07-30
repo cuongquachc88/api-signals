@@ -260,6 +260,15 @@ public final class AppState: ObservableObject {
         }
     }
 
+    public func importRequest(_ request: APIRequest) async {
+        do {
+            let created = try await requestRepository.create(request)
+            self.requests.append(created)
+        } catch {
+            print("Failed to import request: \(error)")
+        }
+    }
+
     public func loadHistory(workspaceId: UUID) async {
         do {
             let history = try await historyRepository.all(in: workspaceId, limit: 50)

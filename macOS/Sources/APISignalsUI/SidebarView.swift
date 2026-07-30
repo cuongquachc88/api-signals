@@ -324,6 +324,8 @@ struct CollectionsSidebarNew: View {
     @State private var renameCollectionValue = ""
     @State private var expandedCollections: Set<UUID> = []
     @State private var addingRequestInCollection: UUID?
+    @State private var importError: String?
+    @State private var showImportError = false
 
     var body: some View {
         VStack(spacing: 2) {
@@ -357,6 +359,47 @@ struct CollectionsSidebarNew: View {
                 renamingCollection = nil
             }
             Button("Cancel", role: .cancel) { renamingCollection = nil }
+        }
+        .alert("Import Error", isPresented: $showImportError) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(importError ?? "Unknown error")
+        }
+    }
+
+    private func exportCollection(_ collection: Collection) {
+        let requests = appState.requests.filter { $0.collectionId == collection.id }
+        let exportData = CollectionExport(collection: collection, requests: requests)
+        guard let data = try? JSONEncoder().encode(exportData) else { return }
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.json]
+        panel.nameFieldStringValue = "\(collection.name).json"
+        Task { @MainActor in
+            guard await panel.begin() == .OK, let url = panel.url else { return }
+            try? data.write(to: url)
+        }
+    }
+
+    private func importRequests(into collection: Collection) {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.json]
+        panel.allowsMultipleSelection = false
+        Task { @MainActor in
+            guard await panel.begin() == .OK, let url = panel.url else { return }
+            guard let data = try? Data(contentsOf: url) else {
+                importError = "Could not read file"; showImportError = true; return
+            }
+            do {
+                let exportData = try JSONDecoder().decode(CollectionExport.self, from: data)
+                for req in exportData.requests {
+                    var imported = req
+                    imported.collectionId = collection.id
+                    await appState.importRequest(imported)
+                }
+                expandedCollections.insert(collection.id)
+            } catch {
+                importError = error.localizedDescription; showImportError = true
+            }
         }
     }
 
@@ -409,6 +452,13 @@ struct CollectionsSidebarNew: View {
                     Button("New Request") {
                         Task { await appState.createNewRequest(in: collection.id) }
                         expandedCollections.insert(collection.id)
+                    }
+                    Divider()
+                    Button("Export Collection…") {
+                        exportCollection(collection)
+                    }
+                    Button("Import Requests…") {
+                        importRequests(into: collection)
                     }
                     Divider()
                     Button("Rename") {
@@ -829,5 +879,19 @@ struct EnvironmentEditorSheet: View {
         }
         .background(Color.dsSurf)
         .frame(minWidth: 600, minHeight: 400)
+    }
+}
+
+// MARK: - Collection Export/Import format
+
+struct CollectionExport: Codable {
+    let version: Int
+    let collectionName: String
+    let requests: [APIRequest]
+
+    init(collection: Collection, requests: [APIRequest]) {
+        self.version = 1
+        self.collectionName = collection.name
+        self.requests = requests
     }
 }
