@@ -14,7 +14,9 @@ struct APISignalsApp: App {
             ContentView()
                 .environmentObject(appState)
                 .frame(minWidth: 1000, minHeight: 700)
+                .background(StandardTitleBarConfigurer())
         }
+        .windowStyle(.automatic)
         .commands {
             CommandGroup(replacing: .importExport) {
                 Button("Export Workspace...") {
@@ -64,7 +66,7 @@ struct APISignalsApp: App {
             }
 
             CommandGroup(after: .toolbar) {
-                Button("Quick Open...") {
+                Button("Search Requests...") {
                     NotificationCenter.default.post(name: .showQuickOpen, object: nil)
                 }
                 .keyboardShortcut("p", modifiers: .command)
@@ -302,5 +304,32 @@ struct APISignalsApp: App {
             let data = converter.export(responses: [])
             try? data.write(to: url)
         }
+    }
+}
+
+/// Standard macOS title bar with traffic lights — no content overlay.
+private struct StandardTitleBarConfigurer: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        DispatchQueue.main.async { Self.apply(to: view.window) }
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        DispatchQueue.main.async { Self.apply(to: nsView.window) }
+    }
+
+    private static func apply(to window: NSWindow?) {
+        guard let window else { return }
+        window.title = "API Signals"
+        window.titleVisibility = .visible
+        window.titlebarAppearsTransparent = false
+        window.styleMask.remove(.fullSizeContentView)
+        window.styleMask.insert([.titled, .closable, .miniaturizable, .resizable])
+        window.toolbar = nil
+        window.isMovableByWindowBackground = false
+        window.standardWindowButton(.closeButton)?.isHidden = false
+        window.standardWindowButton(.miniaturizeButton)?.isHidden = false
+        window.standardWindowButton(.zoomButton)?.isHidden = false
     }
 }

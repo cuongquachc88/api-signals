@@ -239,6 +239,8 @@ struct RequestTabBar: View {
                 Text(tab.rawValue)
                     .font(isSelected ? DS.Font.label : DS.Font.body)
                     .foregroundStyle(isSelected ? Color.dsTextPrim : Color.dsTextSec)
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
                 if badge > 0 {
                     Text("\(badge)")
                         .font(DS.Font.captionMono)
@@ -260,6 +262,7 @@ struct RequestTabBar: View {
             }
         }
         .buttonStyle(.plain)
+        .fixedSize()
     }
 
     private func badgeCount(for tab: RequestTab) -> Int {

@@ -297,10 +297,28 @@ public struct DSSectionHeader: View {
 // MARK: - Divider
 
 public struct DSDivider: View {
+    public enum Axis {
+        case horizontal
+        case vertical
+    }
+
+    private let axis: Axis
+
+    public init(_ axis: Axis = .horizontal) {
+        self.axis = axis
+    }
+
     public var body: some View {
         Rectangle()
             .fill(Color.dsBord)
-            .frame(height: 1)
+            .frame(
+                width: axis == .vertical ? 1 : nil,
+                height: axis == .horizontal ? 1 : nil
+            )
+            .frame(
+                maxWidth: axis == .vertical ? 1 : .infinity,
+                maxHeight: axis == .horizontal ? 1 : .infinity
+            )
     }
 }
 

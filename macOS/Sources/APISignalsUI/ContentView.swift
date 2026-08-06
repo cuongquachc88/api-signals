@@ -13,75 +13,28 @@ public struct ContentView: View {
     public init() {}
 
     public var body: some View {
-        NavigationSplitView {
+        HStack(spacing: 0) {
             SidebarView(appState: appState)
-                .navigationSplitViewColumnWidth(min: 220, ideal: 260, max: 320)
-        } detail: {
-            TabsContainerView(appState: appState)
+                .frame(width: 260)
+                .frame(maxHeight: .infinity)
+
+            DSDivider(.vertical)
+
+            VStack(spacing: 0) {
+                AppChromeBar(
+                    appState: appState,
+                    onSearch: { isQuickOpenPresented = true },
+                    onSSE: { isSSEPresented = true },
+                    onWebSocket: { isWebSocketPresented = true },
+                    onRun: { isCollectionRunnerPresented = true },
+                    onSettings: { isSettingsPresented = true }
+                )
+                TabsContainerView(appState: appState)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .frame(minWidth: 1000, minHeight: 700)
-        .toolbar {
-            ToolbarItemGroup(placement: .navigation) {
-                Button {
-                    NotificationCenter.default.post(name: .showQuickOpen, object: nil)
-                } label: {
-                    HStack(spacing: DS.Spacing.xs) {
-                        Image(systemName: "magnifyingglass")
-                            .font(.system(size: 12))
-                        Text("Quick Open")
-                            .font(DS.Font.caption)
-                        Text("⌘P")
-                            .font(DS.Font.caption)
-                            .foregroundStyle(Color.dsTextTertiary)
-                    }
-                    .foregroundStyle(Color.dsTextSec)
-                    .padding(.horizontal, DS.Spacing.sm)
-                    .padding(.vertical, DS.Spacing.xs)
-                    .background(Color.dsBord.opacity(0.6))
-                    .clipShape(RoundedRectangle(cornerRadius: DS.Radius.sm))
-                }
-                .buttonStyle(.plain)
-                .help("Quick Open (⌘P)")
-            }
-
-            ToolbarItemGroup(placement: .primaryAction) {
-                EnvironmentQuickSwitcherDS(appState: appState)
-
-                Divider()
-
-                Button {
-                    isSSEPresented = true
-                } label: {
-                    Label("SSE", systemImage: "antenna.radiowaves.left.and.right")
-                        .font(DS.Font.caption)
-                }
-                .help("Server-Sent Events")
-
-                Button {
-                    isWebSocketPresented = true
-                } label: {
-                    Label("WS", systemImage: "arrow.up.arrow.down.circle")
-                        .font(DS.Font.caption)
-                }
-                .help("WebSocket")
-
-                Button {
-                    isCollectionRunnerPresented = true
-                } label: {
-                    Label("Run", systemImage: "play.fill")
-                        .font(DS.Font.caption)
-                }
-                .help("Run Collection (⌘⇧R)")
-
-                Button {
-                    isSettingsPresented = true
-                } label: {
-                    Image(systemName: "gear")
-                        .font(.system(size: 13))
-                }
-                .help("Settings (⌘,)")
-            }
-        }
+        .background(Color.dsBg)
         .sheet(isPresented: $isWebSocketPresented) { WebSocketView() }
         .sheet(isPresented: $isSSEPresented) { SSEView() }
         .sheet(isPresented: $isSettingsPresented) { SettingsView() }
@@ -118,6 +71,87 @@ public struct ContentView: View {
         case "dark": return .dark
         default: return nil
         }
+    }
+}
+
+// MARK: - App Chrome Bar (search + environment — not in system toolbar)
+
+struct AppChromeBar: View {
+    @ObservedObject var appState: AppState
+    let onSearch: () -> Void
+    let onSSE: () -> Void
+    let onWebSocket: () -> Void
+    let onRun: () -> Void
+    let onSettings: () -> Void
+
+    var body: some View {
+        HStack(spacing: DS.Spacing.md) {
+            // Search — opens request finder (⌘P)
+            Button(action: onSearch) {
+                HStack(spacing: DS.Spacing.sm) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(Color.dsTextSec)
+                    Text("Search requests…")
+                        .font(DS.Font.body)
+                        .foregroundStyle(Color.dsTextTertiary)
+                    Spacer(minLength: DS.Spacing.sm)
+                    Text("⌘P")
+                        .font(DS.Font.captionMono)
+                        .foregroundStyle(Color.dsTextTertiary)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 3)
+                        .background(Color.dsBord.opacity(0.55))
+                        .clipShape(RoundedRectangle(cornerRadius: 4))
+                }
+                .padding(.horizontal, DS.Spacing.md)
+                .padding(.vertical, 10)
+                .frame(maxWidth: 320)
+                .background(Color.dsBg)
+                .overlay(
+                    RoundedRectangle(cornerRadius: DS.Radius.sm)
+                        .stroke(Color.dsBord, lineWidth: 1)
+                )
+                .clipShape(RoundedRectangle(cornerRadius: DS.Radius.sm))
+            }
+            .buttonStyle(.plain)
+            .help("Search requests by name, URL, or method (⌘P)")
+
+            Spacer(minLength: DS.Spacing.lg)
+
+            EnvironmentQuickSwitcherDS(appState: appState)
+
+            HStack(spacing: DS.Spacing.xs) {
+                chromeIconButton("antenna.radiowaves.left.and.right", help: "Server-Sent Events", action: onSSE)
+                chromeIconButton("arrow.up.arrow.down.circle", help: "WebSocket", action: onWebSocket)
+                chromeIconButton("play.fill", help: "Run Collection (⌘⇧R)", action: onRun)
+                chromeIconButton("gearshape", help: "Settings (⌘,)", action: onSettings)
+            }
+        }
+        .padding(.horizontal, DS.Spacing.lg)
+        .padding(.vertical, DS.Spacing.sm)
+        .frame(height: 52)
+        .background(Color.dsSurf)
+        .overlay(alignment: .bottom) {
+            DSDivider()
+        }
+    }
+
+    private func chromeIconButton(_ systemName: String, help: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(Color.dsTextSec)
+                .frame(width: 32, height: 32)
+                .background(Color.dsBg)
+                .overlay(
+                    RoundedRectangle(cornerRadius: DS.Radius.sm)
+                        .stroke(Color.dsBord, lineWidth: 1)
+                )
+                .clipShape(RoundedRectangle(cornerRadius: DS.Radius.sm))
+        }
+        .buttonStyle(.plain)
+        .help(help)
     }
 }
 
@@ -259,14 +293,15 @@ struct EmptyStateView: View {
                     .font(.system(size: 32, weight: .light))
                     .foregroundStyle(Color.dsAcc.opacity(0.6))
             }
-            VStack(spacing: DS.Spacing.xs) {
+            VStack(spacing: DS.Spacing.sm) {
                 Text("No Request Open")
                     .font(DS.Font.title)
                     .foregroundStyle(Color.dsTextPrim)
-                Text("Select a request from the sidebar or press ⌘P to search")
+                Text("Pick a request in the sidebar, or press ⌘P to search by name or URL.")
                     .font(DS.Font.body)
                     .foregroundStyle(Color.dsTextSec)
                     .multilineTextAlignment(.center)
+                    .frame(maxWidth: 320)
             }
             Spacer()
         }
@@ -280,49 +315,67 @@ struct EmptyStateView: View {
 struct EnvironmentQuickSwitcherDS: View {
     @ObservedObject var appState: AppState
 
+    private var isActive: Bool { appState.activeEnvironment != nil }
+
     var body: some View {
         Menu {
-            ForEach(appState.environments) { env in
-                Button {
-                    Task {
-                        try? await appState.environmentRepository.setActive(
-                            id: env.id, workspaceId: env.workspaceId
-                        )
-                        await appState.selectWorkspace(appState.selectedWorkspace!)
-                    }
-                } label: {
-                    HStack {
-                        Text(env.name)
-                        if env.isActive { Image(systemName: "checkmark") }
+            Section("Switch environment") {
+                ForEach(appState.environments) { env in
+                    Button {
+                        Task {
+                            try? await appState.environmentRepository.setActive(
+                                id: env.id, workspaceId: env.workspaceId
+                            )
+                            await appState.selectWorkspace(appState.selectedWorkspace!)
+                        }
+                    } label: {
+                        HStack {
+                            Text(env.name)
+                            if env.isActive { Image(systemName: "checkmark") }
+                        }
                     }
                 }
-            }
-            if appState.environments.isEmpty {
-                Text("No environments").foregroundStyle(Color.dsTextSec)
+                if appState.environments.isEmpty {
+                    Text("No environments yet")
+                        .foregroundStyle(Color.dsTextSec)
+                }
             }
             Divider()
-            Button("Manage Environments") {
+            Button("Manage Environments…") {
                 NotificationCenter.default.post(name: .showEnvironmentsTab, object: nil)
             }
         } label: {
-            HStack(spacing: DS.Spacing.xs) {
-                Circle()
-                    .fill(appState.activeEnvironment != nil ? Color.dsGET : Color.dsTextSec)
-                    .frame(width: 6, height: 6)
-                Text(appState.activeEnvironment?.name ?? "No Environment")
-                    .font(DS.Font.body)
-                    .foregroundStyle(Color.dsTextPrim)
+            HStack(spacing: DS.Spacing.sm) {
+                Image(systemName: "server.rack")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(isActive ? Color.dsGET : Color.dsTextSec)
+
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Environment")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(Color.dsTextTertiary)
+                    Text(appState.activeEnvironment?.name ?? "None selected")
+                        .font(DS.Font.labelSm)
+                        .foregroundStyle(Color.dsTextPrim)
+                        .lineLimit(1)
+                }
+
                 Image(systemName: "chevron.up.chevron.down")
                     .font(.system(size: 9, weight: .semibold))
                     .foregroundStyle(Color.dsTextSec)
             }
-            .padding(.horizontal, DS.Spacing.lg)
-            .padding(.vertical, DS.Spacing.xs)
-            .background(Color.dsBord.opacity(0.5))
+            .padding(.horizontal, DS.Spacing.md)
+            .padding(.vertical, 10)
+            .frame(minWidth: 180, maxWidth: 240, alignment: .leading)
+            .background(Color.dsBg)
+            .overlay(
+                RoundedRectangle(cornerRadius: DS.Radius.sm)
+                    .stroke(Color.dsBord, lineWidth: 1)
+            )
             .clipShape(RoundedRectangle(cornerRadius: DS.Radius.sm))
         }
         .menuStyle(.borderlessButton)
-        .fixedSize()
+        .help("Active environment — variables applied when sending requests")
     }
 }
 
@@ -353,12 +406,12 @@ struct QuickOpenViewDS: View {
         VStack(spacing: 0) {
             // ── Search field ──────────────────────────────────────────
             HStack(spacing: DS.Spacing.md) {
-                Image(systemName: searchText.isEmpty ? "magnifyingglass" : "magnifyingglass")
+                Image(systemName: "magnifyingglass")
                     .font(.system(size: 17, weight: .medium))
                     .foregroundStyle(searchText.isEmpty ? Color.dsTextTertiary : Color.dsAcc)
                     .frame(width: 22)
 
-                TextField("Search requests…", text: $searchText)
+                TextField("Search by name, URL, or method…", text: $searchText)
                     .textFieldStyle(.plain)
                     .font(.system(size: 17, weight: .regular))
                     .foregroundStyle(Color.dsTextPrim)
@@ -373,7 +426,15 @@ struct QuickOpenViewDS: View {
                 }
             }
             .padding(.horizontal, DS.Spacing.xl)
-            .padding(.vertical, 18)
+            .padding(.top, DS.Spacing.lg)
+            .padding(.bottom, DS.Spacing.md)
+
+            Text("Jump to any request in this workspace")
+                .font(DS.Font.caption)
+                .foregroundStyle(Color.dsTextTertiary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, DS.Spacing.xl)
+                .padding(.bottom, DS.Spacing.md)
 
             // ── Results ───────────────────────────────────────────────
             if filteredRequests.isEmpty && !searchText.isEmpty {

@@ -105,7 +105,7 @@ public struct SidebarView: View {
                     .clipShape(RoundedRectangle(cornerRadius: DS.Radius.xs))
             }
             .buttonStyle(.plain)
-            .help("Quick Open (⌘P)")
+            .help("Search requests (⌘P)")
         }
         .padding(.horizontal, DS.Spacing.md)
         .padding(.vertical, DS.Spacing.sm)
@@ -287,21 +287,21 @@ public struct SidebarView: View {
 
     private var bottomBar: some View {
         HStack(spacing: DS.Spacing.sm) {
-            Circle()
-                .fill(appState.activeEnvironment != nil ? Color.dsGET : Color.dsTextSec)
-                .frame(width: 6, height: 6)
-            Text(appState.activeEnvironment?.name ?? "No Environment")
+            Image(systemName: "server.rack")
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(appState.activeEnvironment != nil ? Color.dsGET : Color.dsTextTertiary)
+            Text(appState.activeEnvironment?.name ?? "No environment")
                 .font(DS.Font.caption)
                 .foregroundStyle(Color.dsTextSec)
                 .lineLimit(1)
-            Spacer()
+            Spacer(minLength: DS.Spacing.sm)
             Text("\(appState.requests.count) requests")
                 .font(DS.Font.caption)
                 .foregroundStyle(Color.dsTextTertiary)
         }
         .padding(.horizontal, DS.Spacing.md)
         .padding(.vertical, DS.Spacing.sm)
-        .frame(height: 32)
+        .frame(minHeight: 36)
     }
 
     private func createWorkspace() {
