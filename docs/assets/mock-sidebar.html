@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>API Signals — Collections</title>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg:#eceef1; --surf:#fff; --el:#e6e8eb; --bord:#c4c8ce;
+      --text:#1f2328; --sec:#656d76; --ter:#8c959f; --acc:#0969da;
+      --get:#1a7f37; --post:#bc4c00; --put:#0969da; --del:#cf222e;
+      --mono:"IBM Plex Mono",monospace; --sans:"Source Sans 3",system-ui,sans-serif;
+    }
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:var(--sans);background:#1a1d21;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:32px}
+    .window{width:1280px;height:800px;background:var(--bg);border-radius:12px;overflow:hidden;box-shadow:0 40px 80px rgba(0,0,0,.45);display:flex;flex-direction:column}
+    .titlebar{height:40px;background:var(--surf);border-bottom:1px solid var(--bord);display:flex;align-items:center;padding:0 14px;gap:8px}
+    .traffic{display:flex;gap:7px}
+    .traffic i{width:12px;height:12px;border-radius:50%;display:block}
+    .r{background:#ff5f57}.y{background:#febc2e}.g{background:#28c840}
+    .title{flex:1;text-align:center;font-size:13px;font-weight:600;color:var(--sec)}
+    .shell{flex:1;display:flex;min-height:0}
+    .sidebar{width:280px;background:var(--surf);border-right:1px solid var(--bord);display:flex;flex-direction:column}
+    .side-head{padding:12px 14px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--bord)}
+    .side-head strong{font-size:13px}
+    .side-head span{color:var(--acc);font-size:18px;line-height:1}
+    .env{margin:12px;padding:10px 12px;background:linear-gradient(135deg,#eef6ff,#f7f8fa);border:1px solid #c8daf0;border-radius:10px}
+    .env .label{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--acc);font-weight:700}
+    .env .name{font-size:14px;font-weight:700;color:var(--text);margin-top:2px}
+    .env .url{font-family:var(--mono);font-size:11px;color:var(--sec);margin-top:2px}
+    .search{margin:0 12px 8px;padding:8px 10px;background:var(--bg);border:1px solid var(--bord);border-radius:8px;font-size:12px;color:var(--ter)}
+    .tree{padding:4px 8px;overflow:auto;flex:1}
+    .folder{font-size:12px;font-weight:700;color:var(--text);padding:8px 8px 4px}
+    .row{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;margin:2px 0;font-size:13px}
+    .row:hover{background:var(--el)}
+    .row.on{background:rgba(9,105,218,.12)}
+    .m{font-family:var(--mono);font-size:10px;font-weight:700;width:46px}
+    .get{color:var(--get)}.post{color:var(--post)}.put{color:var(--put)}.del{color:var(--del)}
+    .main{flex:1;display:flex;align-items:center;justify-content:center;background:var(--bg)}
+    .empty{text-align:center;max-width:360px;padding:24px}
+    .empty img{width:72px;height:72px;margin:0 auto 16px;border-radius:16px}
+    .empty h2{font-size:22px;letter-spacing:-.02em;margin-bottom:8px}
+    .empty p{color:var(--sec);font-size:14px;margin-bottom:18px}
+    .btn{display:inline-block;background:var(--acc);color:#fff;padding:10px 16px;border-radius:8px;font-weight:600;font-size:13px}
+    .hint{margin-top:14px;font-size:12px;color:var(--ter);font-family:var(--mono)}
+  </style>
+</head>
+<body>
+  <div class="window">
+    <div class="titlebar"><div class="traffic"><i class="r"></i><i class="y"></i><i class="g"></i></div><div class="title">API Signals</div></div>
+    <div class="shell">
+      <aside class="sidebar">
+        <div class="side-head"><strong>Collections</strong><span>+</span></div>
+        <div class="env">
+          <div class="label">Environment</div>
+          <div class="name">Staging ▾</div>
+          <div class="url">https://staging.api.signals.dev</div>
+        </div>
+        <div class="search">Search requests…</div>
+        <div class="tree">
+          <div class="folder">▾ Commerce</div>
+          <div class="row on"><span class="m get">GET</span> List products</div>
+          <div class="row"><span class="m post">POST</span> Create order</div>
+          <div class="row"><span class="m put">PUT</span> Update stock</div>
+          <div class="row"><span class="m del">DEL</span> Cancel order</div>
+          <div class="folder">▾ Identity</div>
+          <div class="row"><span class="m post">POST</span> OAuth token</div>
+          <div class="row"><span class="m get">GET</span> Profile</div>
+          <div class="folder">▾ Realtime</div>
+          <div class="row"><span class="m get">SSE</span> Events stream</div>
+          <div class="row"><span class="m put">WS</span> Chat socket</div>
+        </div>
+      </aside>
+      <div class="main">
+        <div class="empty">
+          <img src="app-icon.png" alt="API Signals" />
+          <h2>Pick a request</h2>
+          <p>Browse collections on the left, or search with ⌘K to jump straight into a call.</p>
+          <div class="btn">Search requests…</div>
+          <div class="hint">⌘K · Search · ⌘↵ Send</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

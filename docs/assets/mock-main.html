@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=1400" />
+  <title>API Signals UI Mock</title>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #eceef1;
+      --surf: #ffffff;
+      --el: #e6e8eb;
+      --bord: #c4c8ce;
+      --text: #1f2328;
+      --sec: #656d76;
+      --ter: #8c959f;
+      --acc: #0969da;
+      --get: #1a7f37;
+      --post: #bc4c00;
+      --ok: #1a7f37;
+      --err: #cf222e;
+      --mono: "IBM Plex Mono", ui-monospace, monospace;
+      --sans: "Source Sans 3", system-ui, sans-serif;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: var(--sans);
+      background: #1a1d21;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 32px;
+    }
+    .window {
+      width: 1280px;
+      height: 800px;
+      background: var(--bg);
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 40px 80px rgba(0,0,0,.45), 0 0 0 1px rgba(255,255,255,.06);
+      display: flex;
+      flex-direction: column;
+    }
+    .titlebar {
+      height: 40px;
+      background: var(--surf);
+      border-bottom: 1px solid var(--bord);
+      display: flex;
+      align-items: center;
+      padding: 0 14px;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+    .traffic { display: flex; gap: 7px; }
+    .traffic i { width: 12px; height: 12px; border-radius: 50%; display: block; }
+    .traffic .r { background: #ff5f57; }
+    .traffic .y { background: #febc2e; }
+    .traffic .g { background: #28c840; }
+    .title {
+      flex: 1;
+      text-align: center;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--sec);
+    }
+    .shell { flex: 1; display: flex; min-height: 0; }
+    .sidebar {
+      width: 240px;
+      background: var(--surf);
+      border-right: 1px solid var(--bord);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+    }
+    .side-head {
+      padding: 12px 14px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      color: var(--ter);
+      border-bottom: 1px solid var(--bord);
+    }
+    .env {
+      margin: 10px 12px;
+      padding: 8px 10px;
+      background: var(--el);
+      border-radius: 8px;
+      font-size: 12px;
+      color: var(--text);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .env small { color: var(--sec); display: block; font-size: 11px; font-weight: 400; }
+    .coll { padding: 6px 8px; }
+    .coll-name {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text);
+      padding: 6px 8px;
+    }
+    .req {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 10px;
+      border-radius: 6px;
+      font-size: 12.5px;
+      color: var(--text);
+      margin: 1px 4px;
+    }
+    .req.active { background: rgba(9,105,218,.1); }
+    .method {
+      font-family: var(--mono);
+      font-size: 10px;
+      font-weight: 600;
+      width: 42px;
+      flex-shrink: 0;
+    }
+    .method.get { color: var(--get); }
+    .method.post { color: var(--post); }
+    .method.put { color: #0969da; }
+    .main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+    .chrome {
+      height: 48px;
+      background: var(--surf);
+      border-bottom: 1px solid var(--bord);
+      display: flex;
+      align-items: center;
+      padding: 0 14px;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+    .chrome .search {
+      flex: 1;
+      max-width: 280px;
+      background: var(--bg);
+      border: 1px solid var(--bord);
+      border-radius: 7px;
+      padding: 7px 10px;
+      font-size: 12px;
+      color: var(--ter);
+    }
+    .chrome .spacer { flex: 1; }
+    .pill {
+      font-size: 12px;
+      padding: 6px 10px;
+      border-radius: 7px;
+      border: 1px solid var(--bord);
+      background: var(--surf);
+      color: var(--sec);
+    }
+    .editor { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+    .urlbar {
+      display: flex;
+      gap: 8px;
+      padding: 10px 14px;
+      background: var(--surf);
+      border-bottom: 1px solid var(--bord);
+      align-items: center;
+    }
+    .method-btn {
+      font-family: var(--mono);
+      font-weight: 700;
+      font-size: 12px;
+      color: var(--post);
+      background: rgba(188,76,0,.1);
+      border: 1px solid rgba(188,76,0,.25);
+      border-radius: 7px;
+      padding: 8px 12px;
+    }
+    .url {
+      flex: 1;
+      font-family: var(--mono);
+      font-size: 12.5px;
+      background: var(--bg);
+      border: 1px solid var(--bord);
+      border-radius: 7px;
+      padding: 9px 12px;
+      color: var(--text);
+      white-space: nowrap;
+      overflow: hidden;
+    }
+    .send {
+      background: var(--acc);
+      color: #fff;
+      border: none;
+      border-radius: 7px;
+      padding: 9px 16px;
+      font-weight: 600;
+      font-size: 13px;
+    }
+    .tabs {
+      display: flex;
+      gap: 2px;
+      padding: 0 14px;
+      background: var(--surf);
+      border-bottom: 1px solid var(--bord);
+    }
+    .tab {
+      font-size: 12.5px;
+      padding: 10px 12px;
+      color: var(--sec);
+      border-bottom: 2px solid transparent;
+    }
+    .tab.on {
+      color: var(--text);
+      font-weight: 600;
+      border-bottom-color: var(--acc);
+    }
+    .tab .badge {
+      font-size: 10px;
+      background: var(--el);
+      color: var(--sec);
+      padding: 1px 6px;
+      border-radius: 8px;
+      margin-left: 4px;
+    }
+    .split { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+    .body-pane {
+      flex: 1.15;
+      background: #fff;
+      border-bottom: 1px solid var(--bord);
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+    .body-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 14px;
+      background: var(--surf);
+      border-bottom: 1px solid var(--bord);
+      font-size: 12px;
+      color: var(--sec);
+    }
+    .body-toolbar .valid {
+      color: var(--ok);
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .seg {
+      display: flex;
+      background: var(--el);
+      border-radius: 6px;
+      padding: 2px;
+      margin-left: auto;
+    }
+    .seg span {
+      padding: 3px 10px;
+      border-radius: 4px;
+      font-size: 11px;
+    }
+    .seg .on { background: #fff; color: var(--text); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.06); }
+    .linkish { color: var(--acc); font-weight: 600; margin-left: 6px; cursor: default; }
+    .code {
+      flex: 1;
+      display: flex;
+      font-family: var(--mono);
+      font-size: 12px;
+      line-height: 1.55;
+      overflow: hidden;
+      background: #fff;
+    }
+    .gutter {
+      width: 52px;
+      background: #fafbfc;
+      border-right: 1px solid #e6e8eb;
+      color: var(--ter);
+      text-align: right;
+      padding: 10px 6px 10px 0;
+      flex-shrink: 0;
+      user-select: none;
+    }
+    .gutter div { padding-right: 4px; height: 18.6px; }
+    .fold { color: var(--sec); float: left; width: 14px; text-align: center; }
+    .lines {
+      padding: 10px 12px;
+      color: var(--text);
+      white-space: pre;
+    }
+    .k { color: #953800; }
+    .s { color: #0a3069; }
+    .b { color: #0550ae; }
+    .n { color: #0550ae; }
+    .p { color: var(--sec); }
+    .resp {
+      flex: 0.9;
+      background: var(--surf);
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+    .resp-bar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 8px 14px;
+      border-bottom: 1px solid var(--bord);
+      font-size: 12px;
+    }
+    .status {
+      background: rgba(26,127,55,.12);
+      color: var(--ok);
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-family: var(--mono);
+      font-size: 11px;
+    }
+    .meta { color: var(--sec); font-family: var(--mono); font-size: 11px; }
+    .resp .code { background: #fff; }
+  </style>
+</head>
+<body>
+  <div class="window" id="shot-main">
+    <div class="titlebar">
+      <div class="traffic"><i class="r"></i><i class="y"></i><i class="g"></i></div>
+      <div class="title">API Signals</div>
+    </div>
+    <div class="shell">
+      <aside class="sidebar">
+        <div class="side-head">Workspace</div>
+        <div class="env">
+          <div>
+            <strong>Local</strong>
+            <small>https://api.local</small>
+          </div>
+          ▾
+        </div>
+        <div class="coll">
+          <div class="coll-name">▾ Payments</div>
+          <div class="req"><span class="method get">GET</span> List invoices</div>
+          <div class="req active"><span class="method post">POST</span> Create charge</div>
+          <div class="req"><span class="method put">PUT</span> Update customer</div>
+          <div class="coll-name" style="margin-top:8px">▾ Auth</div>
+          <div class="req"><span class="method post">POST</span> Login</div>
+          <div class="req"><span class="method get">GET</span> Me</div>
+        </div>
+      </aside>
+      <div class="main">
+        <div class="chrome">
+          <div class="search">Search requests…</div>
+          <div class="spacer"></div>
+          <span class="pill">SSE</span>
+          <span class="pill">WS</span>
+          <span class="pill">Run</span>
+        </div>
+        <div class="editor">
+          <div class="urlbar">
+            <div class="method-btn">POST ▾</div>
+            <div class="url">https://api.example.com/v1/charges?currency=usd&amp;capture=true</div>
+            <button class="send">✈ Send</button>
+          </div>
+          <div class="tabs">
+            <div class="tab">Params <span class="badge">2</span></div>
+            <div class="tab">Headers <span class="badge">4</span></div>
+            <div class="tab">Auth</div>
+            <div class="tab on">Body</div>
+            <div class="tab">Scripts</div>
+            <div class="tab">Settings</div>
+          </div>
+          <div class="split">
+            <div class="body-pane">
+              <div class="body-toolbar">
+                <span>{ }</span> JSON
+                <span class="valid">✓ Valid</span>
+                <div class="seg">
+                  <span>none</span><span>raw</span><span class="on">JSON</span><span>GraphQL</span>
+                </div>
+                <span class="linkish">Beautify</span>
+                <span class="linkish">Minify</span>
+              </div>
+              <div class="code">
+                <div class="gutter">
+                  <div><span class="fold">▼</span>1</div>
+                  <div>2</div>
+                  <div>3</div>
+                  <div>4</div>
+                  <div><span class="fold">▼</span>5</div>
+                  <div>6</div>
+                  <div>7</div>
+                  <div>8</div>
+                  <div>9</div>
+                </div>
+                <div class="lines"><span class="p">{</span>
+  <span class="k">"amount"</span><span class="p">:</span> <span class="n">4200</span><span class="p">,</span>
+  <span class="k">"currency"</span><span class="p">:</span> <span class="s">"usd"</span><span class="p">,</span>
+  <span class="k">"capture"</span><span class="p">:</span> <span class="b">true</span><span class="p">,</span>
+  <span class="k">"customer"</span><span class="p">:</span> <span class="p">{</span>
+    <span class="k">"email"</span><span class="p">:</span> <span class="s">"ada@example.com"</span><span class="p">,</span>
+    <span class="k">"name"</span><span class="p">:</span> <span class="s">"Ada Lovelace"</span>
+  <span class="p">}</span>
+<span class="p">}</span></div>
+              </div>
+            </div>
+            <div class="resp">
+              <div class="resp-bar">
+                <div class="tab on" style="border:0;padding:0">Body</div>
+                <div class="tab" style="border:0;padding:0;color:var(--sec)">Headers</div>
+                <div class="spacer" style="flex:1"></div>
+                <span class="status">200 OK</span>
+                <span class="meta">84 ms</span>
+                <span class="meta">1.2 KB</span>
+              </div>
+              <div class="code">
+                <div class="gutter">
+                  <div>1</div><div>2</div><div>3</div><div>4</div><div>5</div>
+                </div>
+                <div class="lines"><span class="p">{</span>
+  <span class="k">"id"</span><span class="p">:</span> <span class="s">"ch_3Qxk…"</span><span class="p">,</span>
+  <span class="k">"status"</span><span class="p">:</span> <span class="s">"succeeded"</span><span class="p">,</span>
+  <span class="k">"paid"</span><span class="p">:</span> <span class="b">true</span>
+<span class="p">}</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

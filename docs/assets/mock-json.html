@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>API Signals — JSON</title>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg:#eceef1; --surf:#fff; --el:#e6e8eb; --bord:#c4c8ce;
+      --text:#1f2328; --sec:#656d76; --ter:#8c959f; --acc:#0969da;
+      --get:#1a7f37; --post:#bc4c00; --ok:#1a7f37;
+      --mono:"IBM Plex Mono",monospace; --sans:"Source Sans 3",system-ui,sans-serif;
+    }
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:var(--sans);background:#1a1d21;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:32px}
+    .window{width:1100px;height:720px;background:var(--bg);border-radius:12px;overflow:hidden;box-shadow:0 40px 80px rgba(0,0,0,.45);display:flex;flex-direction:column}
+    .titlebar{height:40px;background:var(--surf);border-bottom:1px solid var(--bord);display:flex;align-items:center;padding:0 14px;gap:8px}
+    .traffic{display:flex;gap:7px}
+    .traffic i{width:12px;height:12px;border-radius:50%;display:block}
+    .r{background:#ff5f57}.y{background:#febc2e}.g{background:#28c840}
+    .title{flex:1;text-align:center;font-size:13px;font-weight:600;color:var(--sec)}
+    .pane{flex:1;display:flex;flex-direction:column;background:#fff;min-height:0}
+    .tb{display:flex;align-items:center;gap:10px;padding:10px 16px;background:var(--surf);border-bottom:1px solid var(--bord);font-size:12px;color:var(--sec)}
+    .valid{color:var(--ok);font-weight:600}
+    .link{color:var(--acc);font-weight:600;margin-left:4px}
+    .spacer{flex:1}
+    .icon{width:26px;height:22px;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--bord);border-radius:5px;color:var(--sec);font-size:11px}
+    .code{flex:1;display:flex;font-family:var(--mono);font-size:12.5px;line-height:1.55}
+    .gutter{width:56px;background:#fafbfc;border-right:1px solid #e6e8eb;color:var(--ter);padding:12px 0;flex-shrink:0}
+    .gutter div{height:19.4px;padding-right:8px;text-align:right;position:relative}
+    .fold{position:absolute;left:4px;color:var(--sec);font-size:9px}
+    .lines{padding:12px 14px;white-space:pre}
+    .k{color:#953800}.s{color:#0a3069}.b{color:#0550ae}.n{color:#116329}.p{color:var(--sec)}
+  </style>
+</head>
+<body>
+  <div class="window">
+    <div class="titlebar"><div class="traffic"><i class="r"></i><i class="y"></i><i class="g"></i></div><div class="title">Body · JSON</div></div>
+    <div class="pane">
+      <div class="tb">
+        <span>{ }</span> JSON <span class="valid">✓ Valid</span>
+        <div class="spacer"></div>
+        <span class="icon" title="Expand">⤢</span>
+        <span class="icon" title="Collapse">⤡</span>
+        <span class="link">Beautify</span>
+        <span class="link">Minify</span>
+        <span class="icon">📋</span>
+      </div>
+      <div class="code">
+        <div class="gutter">
+          <div><span class="fold">▼</span>1</div>
+          <div>2</div>
+          <div>3</div>
+          <div><span class="fold">▼</span>4</div>
+          <div>5</div>
+          <div>6</div>
+          <div>7</div>
+          <div><span class="fold">▼</span>8</div>
+          <div>9</div>
+          <div>10</div>
+          <div>11</div>
+          <div>12</div>
+          <div>13</div>
+          <div>14</div>
+          <div>15</div>
+        </div>
+        <div class="lines"><span class="p">{</span>
+  <span class="k">"referenceId"</span><span class="p">:</span> <span class="s">"PRUJOURNEY"</span><span class="p">,</span>
+  <span class="k">"async"</span><span class="p">:</span> <span class="b">false</span><span class="p">,</span>
+  <span class="k">"data"</span><span class="p">:</span> <span class="p">{</span>
+    <span class="k">"customerId"</span><span class="p">:</span> <span class="s">"CUST-001"</span><span class="p">,</span>
+    <span class="k">"locale"</span><span class="p">:</span> <span class="s">"en-US"</span><span class="p">,</span>
+    <span class="k">"notify"</span><span class="p">:</span> <span class="b">true</span><span class="p">,</span>
+    <span class="k">"items"</span><span class="p">:</span> <span class="p">[</span>
+      <span class="p">{</span> <span class="k">"sku"</span><span class="p">:</span> <span class="s">"PLAN-PRO"</span><span class="p">,</span> <span class="k">"qty"</span><span class="p">:</span> <span class="n">1</span> <span class="p">},</span>
+      <span class="p">{</span> <span class="k">"sku"</span><span class="p">:</span> <span class="s">"ADDON-SSE"</span><span class="p">,</span> <span class="k">"qty"</span><span class="p">:</span> <span class="n">2</span> <span class="p">}</span>
+    <span class="p">]</span>
+  <span class="p">}</span>
+<span class="p">}</span></div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
