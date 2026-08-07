@@ -210,6 +210,8 @@ struct ResponseBodyView: View {
     let response: APIResponse
     @State private var viewMode: ResponseViewMode = .auto
     @State private var copied = false
+    @State private var displayOverride: String?
+    @State private var beautifyError: String?
 
     enum ResponseViewMode: String, CaseIterable {
         case auto = "Pretty"
@@ -230,7 +232,7 @@ struct ResponseBodyView: View {
                 .frame(width: 200)
                 .controlSize(.small)
 
-                if let data = response.body {
+                if response.body != nil {
                     Text(mimeLabel)
                         .font(DS.Font.captionMono)
                         .foregroundStyle(Color.dsTextTertiary)
@@ -241,8 +243,22 @@ struct ResponseBodyView: View {
 
                     Spacer()
 
+                    if (response.mimeType ?? "").contains("json") || (response.body.map(looksLikeJSON) ?? false) {
+                        Button {
+                            beautifyResponseJSON()
+                        } label: {
+                            Label("Beautify", systemImage: "text.alignleft")
+                                .font(DS.Font.caption)
+                                .foregroundStyle(Color.dsTextSec)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Pretty-print response JSON")
+                    }
+
                     Button {
-                        if let text = String(data: data, encoding: .utf8) {
+                        let text = displayOverride
+                            ?? response.body.flatMap { String(data: $0, encoding: .utf8) }
+                        if let text {
                             NSPasteboard.general.clearContents()
                             NSPasteboard.general.setString(text, forType: .string)
                             copied = true
@@ -256,7 +272,9 @@ struct ResponseBodyView: View {
                     .buttonStyle(.plain)
 
                     Button {
-                        saveToDisk(data: data)
+                        if let data = response.body {
+                            saveToDisk(data: data)
+                        }
                     } label: {
                         Label("Save", systemImage: "arrow.down.to.line")
                             .font(DS.Font.caption)
@@ -271,6 +289,20 @@ struct ResponseBodyView: View {
             .padding(.vertical, DS.Spacing.sm)
             .background(Color.dsSurf)
 
+            if let beautifyError {
+                HStack(spacing: DS.Spacing.xs) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                    Text(beautifyError)
+                        .lineLimit(1)
+                    Spacer()
+                }
+                .font(DS.Font.caption)
+                .foregroundStyle(Color.dsError)
+                .padding(.horizontal, DS.Spacing.lg)
+                .padding(.vertical, DS.Spacing.xs)
+                .background(Color.dsError.opacity(0.08))
+            }
+
             DSDivider()
 
             bodyContent
@@ -283,7 +315,17 @@ struct ResponseBodyView: View {
 
     @ViewBuilder
     private var bodyContent: some View {
-        if let data = response.body {
+        if let override = displayOverride, viewMode != .preview {
+            ScrollView {
+                Text(override)
+                    .font(DS.Font.bodyMono)
+                    .foregroundStyle(Color.dsTextPrim)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(DS.Spacing.lg)
+                    .textSelection(.enabled)
+            }
+            .background(Color.dsBg)
+        } else if let data = response.body {
             let mime = response.mimeType ?? ""
             switch viewMode {
             case .preview:
@@ -336,11 +378,10 @@ struct ResponseBodyView: View {
 
     private func prettyContent(data: Data, mime: String) -> some View {
         let text: String = {
-            if mime.contains("json"),
-               let object = try? JSONSerialization.jsonObject(with: data, options: []),
-               let prettyData = try? JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys]),
-               let s = String(data: prettyData, encoding: .utf8) {
-                return s
+            if mime.contains("json") || looksLikeJSON(data),
+               let raw = String(data: data, encoding: .utf8),
+               let pretty = try? JSONFormatter.beautify(raw) {
+                return pretty
             }
             return String(data: data, encoding: .utf8) ?? "(binary: \(data.count) bytes)"
         }()
@@ -354,6 +395,30 @@ struct ResponseBodyView: View {
                 .textSelection(.enabled)
         }
         .background(Color.dsBg)
+    }
+
+    private func looksLikeJSON(_ data: Data) -> Bool {
+        guard let text = String(data: data, encoding: .utf8)?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+              let first = text.first else { return false }
+        return first == "{" || first == "["
+    }
+
+    private func beautifyResponseJSON() {
+        beautifyError = nil
+        guard let data = response.body,
+              let text = String(data: data, encoding: .utf8) else {
+            beautifyError = "No text body to format"
+            return
+        }
+        do {
+            displayOverride = try JSONFormatter.beautify(text)
+            viewMode = .auto
+        } catch let error as JSONFormatError {
+            beautifyError = error.message
+        } catch {
+            beautifyError = error.localizedDescription
+        }
     }
 
     private func saveToDisk(data: Data) {

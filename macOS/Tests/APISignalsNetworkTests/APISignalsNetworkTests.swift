@@ -85,7 +85,7 @@ final class APISignalsNetworkTests: XCTestCase {
 
     func testRequestBuilderAppendsQueryParams() async {
         let builder = RequestBuilder()
-        var components = URLComponents(string: "https://api.example.com/users")!
+        let components = URLComponents(string: "https://api.example.com/users")!
         let request = APIRequest(
             name: "Test",
             url: components,
@@ -99,6 +99,45 @@ final class APISignalsNetworkTests: XCTestCase {
         } else {
             XCTFail("Expected success")
         }
+    }
+
+    func testRequestBuilderUsesParamsTableAsQuerySourceOfTruth() async {
+        let builder = RequestBuilder()
+        // Legacy-style URL that still embeds a query string; params table should win.
+        let components = URLComponents(string: "https://api.example.com/users?legacy=1")!
+        let request = APIRequest(
+            name: "Test",
+            url: components,
+            queryParams: [Parameter(key: "page", value: "2")]
+        )
+        let result = await builder.buildURLRequest(from: request, environment: nil)
+        guard case .success(let urlRequest) = result else {
+            return XCTFail("Expected success")
+        }
+        let items = URLComponents(url: urlRequest.url!, resolvingAgainstBaseURL: false)?.queryItems ?? []
+        XCTAssertEqual(items.count, 1)
+        XCTAssertEqual(items.first?.name, "page")
+        XCTAssertEqual(items.first?.value, "2")
+        XCTAssertFalse(items.contains { $0.name == "legacy" })
+    }
+
+    func testRequestBuilderSkipsDisabledQueryParams() async {
+        let builder = RequestBuilder()
+        let request = APIRequest(
+            name: "Test",
+            url: URLComponents(string: "https://api.example.com/users")!,
+            queryParams: [
+                Parameter(key: "page", value: "1", isEnabled: true),
+                Parameter(key: "debug", value: "1", isEnabled: false)
+            ]
+        )
+        let result = await builder.buildURLRequest(from: request, environment: nil)
+        guard case .success(let urlRequest) = result else {
+            return XCTFail("Expected success")
+        }
+        let query = urlRequest.url?.query ?? ""
+        XCTAssertTrue(query.contains("page=1"))
+        XCTAssertFalse(query.contains("debug"))
     }
 
     func testCurlConverterParsesSimpleGet() throws {
@@ -128,6 +167,49 @@ final class APISignalsNetworkTests: XCTestCase {
         } else {
             XCTFail("Expected basic auth")
         }
+    }
+
+    func testCurlConverterParsesMultilineWithContinuations() throws {
+        let converter = CurlConverter()
+        let command = #"""
+        curl 'https://api.example.com/users?limit=10' \
+          -H 'Authorization: Bearer tok_123' \
+          -H 'Content-Type: application/json' \
+          --data-raw '{"name":"test"}'
+        """#
+        let request = try converter.parse(command)
+        XCTAssertEqual(request.method, .post)
+        XCTAssertEqual(request.url.host, "api.example.com")
+        XCTAssertEqual(request.queryParams.first?.key, "limit")
+        XCTAssertEqual(request.headers.count, 2)
+        if case .bearer(let token) = request.auth {
+            XCTAssertEqual(token, "tok_123")
+        } else {
+            XCTFail("Expected bearer auth")
+        }
+        if case .json(let text) = request.body {
+            XCTAssertEqual(text, #"{"name":"test"}"#)
+        } else {
+            XCTFail("Expected JSON body")
+        }
+    }
+
+    func testCurlConverterParsesJsonFlag() throws {
+        let converter = CurlConverter()
+        let request = try converter.parse(#"curl --json '{"a":1}' https://api.example.com/items"#)
+        XCTAssertEqual(request.method, .post)
+        if case .json(let text) = request.body {
+            XCTAssertTrue(text.contains("\"a\""))
+        } else {
+            XCTFail("Expected JSON body from --json")
+        }
+    }
+
+    func testCurlConverterLooksLikeCurl() {
+        XCTAssertTrue(CurlConverter.looksLikeCurl("curl https://a.com"))
+        XCTAssertTrue(CurlConverter.looksLikeCurl("  CURL 'https://a.com' \\\n  -H 'X: 1'"))
+        XCTAssertFalse(CurlConverter.looksLikeCurl("https://a.com"))
+        XCTAssertFalse(CurlConverter.looksLikeCurl(""))
     }
 
     func testCurlGeneratorRoundTrip() throws {

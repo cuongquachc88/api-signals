@@ -37,18 +37,16 @@ public actor RequestBuilder {
             components.scheme = "https"
         }
 
-        // Apply query params
-        var queryItems: [URLQueryItem] = []
-        for param in request.queryParams where param.isEnabled {
-            let key = resolver.resolve(param.key, context: context)
-            let value = resolver.resolve(param.value, context: context)
-            queryItems.append(URLQueryItem(name: key, value: value))
-        }
-        if !queryItems.isEmpty {
-            var existing = components.queryItems ?? []
-            existing.append(contentsOf: queryItems)
-            components.queryItems = existing
-        }
+        // Query params table is the source of truth (address bar syncs into it).
+        let queryItems: [URLQueryItem] = request.queryParams
+            .filter(\.isEnabled)
+            .map { param in
+                URLQueryItem(
+                    name: resolver.resolve(param.key, context: context),
+                    value: resolver.resolve(param.value, context: context)
+                )
+            }
+        components.queryItems = queryItems.isEmpty ? nil : queryItems
 
         guard let url = components.url else {
             return .failure(.invalidURL)

@@ -13,8 +13,12 @@ public final class RequestViewModel: ObservableObject {
     @Published public var selectedResponseTab: ResponseTab = .body
     @Published public var scriptTests: [ScriptTest] = []
     @Published public var scriptErrors: [String] = []
+    /// Bumped when a cURL import should focus a request editor tab.
+    @Published public var editorFocusToken = UUID()
+    @Published public var editorFocusTabRaw: String?
 
     private var activeRequestId: UUID?
+    private var persistGeneration: UInt64 = 0
 
     public enum BodyTab: String, CaseIterable {
         case none = "None"
@@ -63,9 +67,60 @@ public final class RequestViewModel: ObservableObject {
     }
 
     public func updateRequest() {
-        Task {
+        schedulePersist(delayNanoseconds: 0)
+    }
+
+    /// Persist after a short delay to avoid DB writes on every keystroke.
+    public func schedulePersist(delayNanoseconds: UInt64 = 350_000_000) {
+        persistGeneration += 1
+        let generation = persistGeneration
+        Task { @MainActor in
+            if delayNanoseconds > 0 {
+                try? await Task.sleep(nanoseconds: delayNanoseconds)
+            }
+            guard generation == persistGeneration else { return }
             await onRequestUpdated(request)
         }
+    }
+
+    /// Apply a parsed cURL import into the editor and persist once.
+    public func applyImportedRequest(_ imported: APIRequest) {
+        request.method = imported.method
+        request.url = imported.url
+        request.headers = imported.headers
+        request.queryParams = imported.queryParams
+        request.body = imported.body
+        request.auth = imported.auth
+        if imported.name.hasPrefix("Imported cURL") {
+            request.name = imported.name
+        }
+        selectedBodyTab = Self.bodyTab(for: imported.body)
+        // Prefer JSON tab when body is JSON-looking raw.
+        if case .raw(let text, let mime) = imported.body,
+           mime.lowercased().contains("json") || text.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("{") {
+            request.body = .json(text)
+            selectedBodyTab = .json
+        }
+        if case .json(let text) = request.body, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            // Skip sync beautify on large payloads — freezes the UI; use Beautify in the editor instead.
+            if text.count < JSONFormatter.largeJSONCharacterThreshold,
+               let pretty = try? JSONFormatter.beautify(text) {
+                request.body = .json(pretty)
+            }
+        }
+        if imported.body != .none {
+            editorFocusTabRaw = "Body"
+        } else if imported.auth != .none {
+            editorFocusTabRaw = "Auth"
+        } else if !imported.headers.isEmpty {
+            editorFocusTabRaw = "Headers"
+        } else if !imported.queryParams.isEmpty {
+            editorFocusTabRaw = "Params"
+        } else {
+            editorFocusTabRaw = nil
+        }
+        editorFocusToken = UUID()
+        schedulePersist(delayNanoseconds: 0)
     }
 
     public func cancelRequest() {
@@ -177,10 +232,22 @@ public final class RequestViewModel: ObservableObject {
             request.body = .none
         case .raw:
             if case .raw(_, _) = request.body { break }
+            if case .json(let text) = request.body {
+                request.body = .raw(text: text, mimeType: "application/json")
+                break
+            }
             request.body = .raw(text: "", mimeType: "text/plain")
         case .json:
             if case .json(_) = request.body { break }
-            request.body = .json("")
+            // Preserve existing JSON-looking raw body instead of wiping it.
+            if case .raw(let text, _) = request.body {
+                let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                if trimmed.hasPrefix("{") || trimmed.hasPrefix("[") || trimmed.isEmpty {
+                    request.body = .json(text)
+                    break
+                }
+            }
+            request.body = .json("{\n  \n}")
         case .form:
             if case .formData(_) = request.body { break }
             request.body = .formData([])
@@ -189,7 +256,7 @@ public final class RequestViewModel: ObservableObject {
             request.body = .urlEncoded([])
         case .graphql:
             if case .graphql(_, _) = request.body { break }
-            request.body = .graphql(query: "", variables: "")
+            request.body = .graphql(query: "", variables: "{\n  \n}")
         }
         updateRequest()
     }

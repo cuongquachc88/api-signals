@@ -50,6 +50,12 @@ public struct RequestEditorView: View {
                 .frame(minHeight: 180)
                 .background(Color.dsSurf)
         }
+        .onChange(of: viewModel.editorFocusToken) { _, _ in
+            if let raw = viewModel.editorFocusTabRaw,
+               let tab = RequestTab(rawValue: raw) {
+                selectedRequestTab = tab
+            }
+        }
     }
 
     @ViewBuilder
@@ -70,6 +76,7 @@ public struct RequestEditorView: View {
                 RequestSettingsEditorView(viewModel: viewModel)
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 
@@ -78,6 +85,9 @@ public struct RequestEditorView: View {
 struct RequestURLBar: View {
     @ObservedObject var viewModel: RequestViewModel
     @State private var isCodeSheetPresented = false
+    @State private var urlText: String = ""
+    @State private var curlImportError: String?
+    @FocusState private var isURLFocused: Bool
 
     private let barHeight: CGFloat = 36
 
@@ -114,35 +124,23 @@ struct RequestURLBar: View {
 
             // URL field
             ZStack(alignment: .leading) {
-                if (viewModel.request.url.url?.absoluteString ?? "").isEmpty {
-                    Text("Enter URL or paste cURL command…")
+                if urlText.isEmpty {
+                    Text("Enter URL or paste cURL…")
                         .font(DS.Font.urlBar)
                         .foregroundStyle(Color.dsTextTertiary)
                         .allowsHitTesting(false)
                         .padding(.horizontal, DS.Spacing.md)
                 }
-                TextField("", text: Binding(
-                    get: { viewModel.request.url.url?.absoluteString ?? "" },
-                    set: { newValue in
-                        let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
-                        if trimmed.hasPrefix("curl ") {
-                            if let parsed = try? CurlConverter().parse(trimmed) {
-                                viewModel.request.method = parsed.method
-                                viewModel.request.url = parsed.url
-                                viewModel.request.headers = parsed.headers
-                                viewModel.request.queryParams = parsed.queryParams
-                                viewModel.request.body = parsed.body
-                                viewModel.updateRequest()
-                            }
-                        } else {
-                            viewModel.request.url = URLComponents(string: newValue) ?? URLComponents()
-                        }
+                TextField("", text: $urlText, axis: .vertical)
+                    .font(DS.Font.urlBar)
+                    .foregroundStyle(Color.dsTextPrim)
+                    .textFieldStyle(.plain)
+                    .lineLimit(1)
+                    .focused($isURLFocused)
+                    .padding(.horizontal, DS.Spacing.md)
+                    .onChange(of: urlText) { _, newValue in
+                        handleURLTextChange(newValue)
                     }
-                ))
-                .font(DS.Font.urlBar)
-                .foregroundStyle(Color.dsTextPrim)
-                .textFieldStyle(.plain)
-                .padding(.horizontal, DS.Spacing.md)
             }
             .frame(maxWidth: .infinity)
             .frame(height: barHeight)
@@ -150,8 +148,9 @@ struct RequestURLBar: View {
             .clipShape(RoundedRectangle(cornerRadius: DS.Radius.sm))
             .overlay(
                 RoundedRectangle(cornerRadius: DS.Radius.sm)
-                    .stroke(Color.dsBord, lineWidth: 1)
+                    .stroke(curlImportError == nil ? Color.dsBord : Color.dsError, lineWidth: 1)
             )
+            .help(curlImportError ?? "Paste a URL or a full cURL command")
 
             // Code snippet button — same height
             Button {
@@ -207,6 +206,52 @@ struct RequestURLBar: View {
         .padding(.horizontal, DS.Spacing.lg)
         .padding(.vertical, DS.Spacing.sm)
         .background(Color.dsSurf)
+        .onAppear {
+            refreshURLTextFromModel(force: true)
+        }
+        .onChange(of: viewModel.request.url) { _, _ in
+            refreshURLTextFromModel(force: false)
+        }
+        .onChange(of: viewModel.request.queryParams) { _, _ in
+            refreshURLTextFromModel(force: false)
+        }
+    }
+
+    private func refreshURLTextFromModel(force: Bool) {
+        if RequestURLSync.migrateQueryOutOfURL(request: &viewModel.request) {
+            viewModel.schedulePersist()
+        }
+        let next = RequestURLSync.displayString(
+            url: viewModel.request.url,
+            queryParams: viewModel.request.queryParams
+        )
+        if force || (!isURLFocused && urlText != next) {
+            urlText = next
+        }
+    }
+
+    private func handleURLTextChange(_ newValue: String) {
+        curlImportError = nil
+        let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if CurlConverter.looksLikeCurl(trimmed) {
+            do {
+                let parsed = try CurlConverter().parse(trimmed)
+                viewModel.applyImportedRequest(parsed)
+                urlText = RequestURLSync.displayString(
+                    url: viewModel.request.url,
+                    queryParams: viewModel.request.queryParams
+                )
+                isURLFocused = false
+            } catch {
+                curlImportError = "Could not parse cURL — check the command and try again"
+                // Keep the pasted text visible so the user can edit/fix.
+            }
+            return
+        }
+
+        RequestURLSync.apply(fullURL: newValue, to: &viewModel.request)
+        viewModel.schedulePersist()
     }
 }
 

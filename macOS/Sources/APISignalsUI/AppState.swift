@@ -25,11 +25,17 @@ public final class AppState: ObservableObject {
     }
 
     public func openTab(_ request: APIRequest) {
-        if !openTabs.contains(where: { $0.id == request.id }) {
+        if let idx = openTabs.firstIndex(where: { $0.id == request.id }) {
+            openTabs[idx] = request
+        } else {
             openTabs.append(request)
         }
         selectedTabId = request.id
-        selectedRequest = request
+        if selectedRequest?.id != request.id {
+            selectedRequest = request
+        } else if selectedRequest != request {
+            selectedRequest = request
+        }
     }
 
     public func closeTab(_ request: APIRequest) {
@@ -189,6 +195,8 @@ public final class AppState: ObservableObject {
             if let index = requests.firstIndex(where: { $0.id == updated.id }) {
                 requests[index] = updated
             }
+            updateTab(updated)
+            // Avoid resetting the editor StateObject on every keystroke persist.
             if selectedRequest?.id == updated.id {
                 selectedRequest = updated
             }

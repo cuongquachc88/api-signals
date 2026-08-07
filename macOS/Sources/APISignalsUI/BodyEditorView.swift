@@ -31,7 +31,9 @@ struct BodyEditorView: View {
             DSDivider()
 
             bodyContent
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.dsBg)
     }
 
@@ -65,13 +67,22 @@ struct BodyEditorView: View {
                     get: { text },
                     set: { viewModel.request.body = .raw(text: $0, mimeType: mimeType); viewModel.updateRequest() }
                 ))
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-        case .json(let text):
-            CodeEditorDS(text: Binding(
-                get: { text },
-                set: { viewModel.request.body = .json($0); viewModel.updateRequest() }
-            ), hint: "{ }")
+        case .json:
+            JSONEditorView(
+                text: Binding(
+                    get: {
+                        if case .json(let text) = viewModel.request.body { return text }
+                        return ""
+                    },
+                    set: { viewModel.request.body = .json($0) }
+                ),
+                onChange: { viewModel.schedulePersist() },
+                placeholder: "{\n  \"key\": \"value\"\n}"
+            )
 
         case .formData(let fields):
             FormDataEditorDS(fields: Binding(
@@ -107,29 +118,11 @@ struct BodyEditorView: View {
 
                 CodeEditorDS(text: Binding(
                     get: { query },
-                    set: { viewModel.request.body = .graphql(query: $0, variables: variables); viewModel.updateRequest() }
-                ), hint: "{ }")
-
-                DSDivider()
-
-                HStack(spacing: DS.Spacing.sm) {
-                    Text("Variables")
-                        .font(DS.Font.labelSm)
-                        .foregroundStyle(Color.dsTextSec)
-                        .tracking(0.3)
-                    Spacer()
-                }
-                .padding(.horizontal, DS.Spacing.lg)
-                .padding(.vertical, DS.Spacing.xs)
-                .background(Color.dsSurf)
-
-                DSDivider()
-
-                CodeEditorDS(text: Binding(
-                    get: { variables },
-                    set: { viewModel.request.body = .graphql(query: query, variables: $0); viewModel.updateRequest() }
-                ), hint: "{ }")
+                    set: { viewModel.request.body = .graphql(query: $0, variables: variables); viewModel.schedulePersist() }
+                ), hint: "query { }")
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
 
         case .binary(let data):
             VStack(spacing: DS.Spacing.sm) {
@@ -163,7 +156,7 @@ struct BodyEditorView: View {
                 .foregroundStyle(Color.dsTextSec)
             Spacer()
         }
-        .frame(maxWidth: .infinity)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 
@@ -186,9 +179,9 @@ struct CodeEditorDS: View {
                 .font(DS.Font.bodyMono)
                 .foregroundStyle(Color.dsTextPrim)
                 .scrollContentBackground(.hidden)
-                .frame(minHeight: 120)
                 .padding(DS.Spacing.sm)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.dsBg)
     }
 }
