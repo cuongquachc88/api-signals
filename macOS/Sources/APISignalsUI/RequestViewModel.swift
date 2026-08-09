@@ -256,7 +256,13 @@ public final class RequestViewModel: ObservableObject {
             request.body = .urlEncoded([])
         case .graphql:
             if case .graphql(_, _) = request.body { break }
-            request.body = .graphql(query: "", variables: "{\n  \n}")
+            if request.method == .get {
+                request.method = .post
+            }
+            request.body = .graphql(
+                query: "query {\n  __typename\n}\n",
+                variables: "{\n  \n}"
+            )
         }
         updateRequest()
     }

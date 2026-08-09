@@ -349,7 +349,12 @@ private extension RequestBody {
             return text
         case .json(let text):
             return text
-        case .graphql(let query, _):
+        case .graphql(let query, let variables):
+            // Expose the wire payload so scripts see what is actually sent.
+            if let data = try? GraphQLPayload.encode(query: query, variablesJSON: variables),
+               let text = String(data: data, encoding: .utf8) {
+                return text
+            }
             return query
         }
     }

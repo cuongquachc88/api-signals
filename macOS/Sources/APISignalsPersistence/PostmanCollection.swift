@@ -394,6 +394,83 @@ public struct PostmanGraphQL: Codable, Sendable {
         self.query = query
         self.variables = variables
     }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        query = try container.decodeIfPresent(String.self, forKey: .query) ?? ""
+        // Postman may store variables as a JSON string or as an object.
+        if let text = try? container.decode(String.self, forKey: .variables) {
+            variables = text
+        } else if let object = try? container.decode([String: PostmanJSONValue].self, forKey: .variables) {
+            let data = try JSONEncoder().encode(object)
+            variables = String(data: data, encoding: .utf8) ?? "{}"
+        } else {
+            variables = "{}"
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(query, forKey: .query)
+        try container.encode(variables, forKey: .variables)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case query, variables
+    }
+}
+
+/// Codable JSON value for Postman GraphQL `variables` objects.
+private enum PostmanJSONValue: Codable {
+    case null
+    case bool(Bool)
+    case number(Double)
+    case string(String)
+    case array([PostmanJSONValue])
+    case object([String: PostmanJSONValue])
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        if container.decodeNil() {
+            self = .null
+        } else if let b = try? container.decode(Bool.self) {
+            self = .bool(b)
+        } else if let i = try? container.decode(Int.self) {
+            self = .number(Double(i))
+        } else if let d = try? container.decode(Double.self) {
+            self = .number(d)
+        } else if let s = try? container.decode(String.self) {
+            self = .string(s)
+        } else if let a = try? container.decode([PostmanJSONValue].self) {
+            self = .array(a)
+        } else if let o = try? container.decode([String: PostmanJSONValue].self) {
+            self = .object(o)
+        } else {
+            throw DecodingError.dataCorruptedError(in: container, debugDescription: "Unsupported JSON value")
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        switch self {
+        case .null:
+            try container.encodeNil()
+        case .bool(let v):
+            try container.encode(v)
+        case .number(let v):
+            if v.rounded() == v, v >= Double(Int.min), v <= Double(Int.max) {
+                try container.encode(Int(v))
+            } else {
+                try container.encode(v)
+            }
+        case .string(let v):
+            try container.encode(v)
+        case .array(let v):
+            try container.encode(v)
+        case .object(let v):
+            try container.encode(v)
+        }
+    }
 }
 
 public struct PostmanAuth: Codable, Sendable {

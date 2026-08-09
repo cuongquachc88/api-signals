@@ -283,10 +283,19 @@ public struct CurlConverter {
                     parts.append("-F '\(field.key)=\(field.value)'")
                 }
             }
-        case .graphql(let query, _):
+        case .graphql(let query, let variables):
             parts.append("-H \"Content-Type: application/json\"")
-            let payload = "{\"query\":\"\(query.replacingOccurrences(of: "\"", with: "\\\""))\"}"
-            parts.append("-d '\(payload)'")
+            if let data = try? GraphQLPayload.encode(query: query, variablesJSON: variables),
+               let json = String(data: data, encoding: .utf8) {
+                let escaped = json.replacingOccurrences(of: "'", with: "'\\''")
+                parts.append("-d '\(escaped)'")
+            } else {
+                let escapedQuery = query
+                    .replacingOccurrences(of: "\\", with: "\\\\")
+                    .replacingOccurrences(of: "\"", with: "\\\"")
+                    .replacingOccurrences(of: "\n", with: "\\n")
+                parts.append("-d '{\"query\":\"\(escapedQuery)\"}'")
+            }
         case .binary:
             parts.append("--data-binary @file")
         }

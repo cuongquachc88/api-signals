@@ -116,4 +116,96 @@ final class APISignalsPersistenceTests: XCTestCase {
         XCTAssertEqual(snapshot.requests.count, 1)
         XCTAssertEqual(snapshot.environments.count, 1)
     }
+
+    // MARK: - Postman GraphQL import / export
+
+    func testPostmanGraphQLVariablesAsString() throws {
+        let json = """
+        {
+          "info": { "_postman_id": "1", "name": "GQL Coll", "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json" },
+          "item": [{
+            "name": "Hero",
+            "request": {
+              "method": "POST",
+              "header": [],
+              "body": {
+                "mode": "graphql",
+                "graphql": {
+                  "query": "query Hero($ep: Episode!) { hero(episode: $ep) { name } }",
+                  "variables": "{\\"ep\\":\\"JEDI\\"}"
+                }
+              },
+              "url": { "raw": "https://api.example.com/graphql", "host": ["api","example","com"], "path": ["graphql"] }
+            }
+          }]
+        }
+        """
+        let collection = try JSONDecoder().decode(PostmanCollection.self, from: Data(json.utf8))
+        let converter = PostmanCollectionConverter()
+        let (_, requests) = converter.convert(postmanCollection: collection, workspaceId: UUID())
+        XCTAssertEqual(requests.count, 1)
+        guard case .graphql(let query, let variables) = requests[0].body else {
+            return XCTFail("Expected graphql body")
+        }
+        XCTAssertTrue(query.contains("hero(episode: $ep)"))
+        XCTAssertTrue(variables.contains("JEDI"))
+    }
+
+    func testPostmanGraphQLVariablesAsObject() throws {
+        let json = """
+        {
+          "info": { "_postman_id": "2", "name": "GQL Obj", "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json" },
+          "item": [{
+            "name": "User",
+            "request": {
+              "method": "POST",
+              "header": [],
+              "body": {
+                "mode": "graphql",
+                "graphql": {
+                  "query": "query($id: ID!) { user(id: $id) { name } }",
+                  "variables": { "id": "42", "active": true }
+                }
+              },
+              "url": { "raw": "https://api.example.com/graphql", "protocol": "https", "host": ["api","example","com"], "path": ["graphql"] }
+            }
+          }]
+        }
+        """
+        let collection = try JSONDecoder().decode(PostmanCollection.self, from: Data(json.utf8))
+        let gql = try XCTUnwrap(collection.item.first?.request?.body?.graphql)
+        XCTAssertEqual(gql.query, "query($id: ID!) { user(id: $id) { name } }")
+        let vars = try JSONSerialization.jsonObject(with: Data(gql.variables.utf8)) as? [String: Any]
+        XCTAssertEqual(vars?["id"] as? String, "42")
+        XCTAssertEqual(vars?["active"] as? Bool, true)
+
+        let converter = PostmanCollectionConverter()
+        let (_, requests) = converter.convert(postmanCollection: collection, workspaceId: UUID())
+        guard case .graphql(_, let variables) = requests[0].body else {
+            return XCTFail("Expected graphql body")
+        }
+        XCTAssertTrue(variables.contains("42"))
+    }
+
+    func testPostmanGraphQLExportRoundTrip() throws {
+        let request = APIRequest(
+            name: "GQL",
+            method: .post,
+            url: URLComponents(string: "https://api.example.com/graphql")!,
+            body: .graphql(
+                query: "query Q { ping }",
+                variables: #"{"n":1}"#
+            )
+        )
+        let converter = PostmanCollectionConverter()
+        let postman = converter.convert(
+            collection: Collection(workspaceId: UUID(), name: "Out"),
+            requests: [request]
+        )
+        let data = try JSONEncoder().encode(postman)
+        let decoded = try JSONDecoder().decode(PostmanCollection.self, from: data)
+        let gql = try XCTUnwrap(decoded.item.first?.request?.body?.graphql)
+        XCTAssertEqual(gql.query, "query Q { ping }")
+        XCTAssertEqual(gql.variables, #"{"n":1}"#)
+    }
 }

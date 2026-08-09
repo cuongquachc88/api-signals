@@ -153,13 +153,11 @@ public actor RequestBuilder {
         case .graphql(let query, let variables):
             let resolvedQuery = resolver.resolve(query, context: context)
             let resolvedVariables = resolver.resolve(variables, context: context)
-            let payload: [String: Any] = [
-                "query": resolvedQuery,
-                "variables": resolvedVariables
-            ]
             do {
-                let data = try JSONSerialization.data(withJSONObject: payload, options: .fragmentsAllowed)
+                let data = try GraphQLPayload.encode(query: resolvedQuery, variablesJSON: resolvedVariables)
                 return .success(BodyResult(data: data, contentType: "application/json"))
+            } catch is GraphQLPayloadError {
+                return .failure(.invalidBody)
             } catch {
                 return .failure(.invalidBody)
             }

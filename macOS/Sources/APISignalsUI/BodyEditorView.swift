@@ -101,27 +101,33 @@ struct BodyEditorView: View {
                 emptyMessage: "No form fields"
             )
 
-        case .graphql(let query, let variables):
-            VStack(spacing: 0) {
-                HStack(spacing: DS.Spacing.sm) {
-                    Text("Query")
-                        .font(DS.Font.labelSm)
-                        .foregroundStyle(Color.dsTextSec)
-                        .tracking(0.3)
-                    Spacer()
-                }
-                .padding(.horizontal, DS.Spacing.lg)
-                .padding(.vertical, DS.Spacing.xs)
-                .background(Color.dsSurf)
-
-                DSDivider()
-
-                CodeEditorDS(text: Binding(
-                    get: { query },
-                    set: { viewModel.request.body = .graphql(query: $0, variables: variables); viewModel.schedulePersist() }
-                ), hint: "query { }")
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
+        case .graphql:
+            GraphQLBodyEditor(
+                query: Binding(
+                    get: {
+                        if case .graphql(let q, _) = viewModel.request.body { return q }
+                        return ""
+                    },
+                    set: { newQuery in
+                        if case .graphql(_, let vars) = viewModel.request.body {
+                            viewModel.request.body = .graphql(query: newQuery, variables: vars)
+                            viewModel.schedulePersist()
+                        }
+                    }
+                ),
+                variables: Binding(
+                    get: {
+                        if case .graphql(_, let vars) = viewModel.request.body { return vars }
+                        return "{}"
+                    },
+                    set: { newVars in
+                        if case .graphql(let q, _) = viewModel.request.body {
+                            viewModel.request.body = .graphql(query: q, variables: newVars)
+                            viewModel.schedulePersist()
+                        }
+                    }
+                )
+            )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
         case .binary(let data):
@@ -155,6 +161,75 @@ struct BodyEditorView: View {
                 .font(DS.Font.body)
                 .foregroundStyle(Color.dsTextSec)
             Spacer()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+// MARK: - GraphQL body editor (query + variables)
+
+struct GraphQLBodyEditor: View {
+    @Binding var query: String
+    @Binding var variables: String
+
+    private var variablesValid: Bool {
+        GraphQLPayload.isValidVariablesJSON(variables)
+    }
+
+    var body: some View {
+        VSplitView {
+            VStack(spacing: 0) {
+                HStack(spacing: DS.Spacing.sm) {
+                    Image(systemName: "point.3.connected.trianglepath.dotted")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(Color.dsTextSec)
+                    Text("Query")
+                        .font(DS.Font.labelSm)
+                        .foregroundStyle(Color.dsTextSec)
+                        .tracking(0.3)
+                    Spacer()
+                }
+                .padding(.horizontal, DS.Spacing.lg)
+                .padding(.vertical, DS.Spacing.xs)
+                .background(Color.dsSurf)
+
+                DSDivider()
+
+                CodeEditorDS(text: $query, hint: "query {\n  __typename\n}")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+            .frame(minHeight: 140)
+
+            VStack(spacing: 0) {
+                HStack(spacing: DS.Spacing.sm) {
+                    Text("Variables")
+                        .font(DS.Font.labelSm)
+                        .foregroundStyle(Color.dsTextSec)
+                        .tracking(0.3)
+                    if !variables.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        if variablesValid {
+                            Label("Valid", systemImage: "checkmark.circle.fill")
+                                .font(DS.Font.caption)
+                                .foregroundStyle(Color.dsGET)
+                        } else {
+                            Label("Invalid JSON object", systemImage: "exclamationmark.triangle.fill")
+                                .font(DS.Font.caption)
+                                .foregroundStyle(Color.dsError)
+                        }
+                    }
+                    Spacer()
+                }
+                .padding(.horizontal, DS.Spacing.lg)
+                .padding(.vertical, DS.Spacing.xs)
+                .background(Color.dsSurf)
+
+                DSDivider()
+
+                CodeEditorDS(text: $variables, hint: "{\n  \"id\": 1\n}")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(Color.white)
+            }
+            .frame(minHeight: 100)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
