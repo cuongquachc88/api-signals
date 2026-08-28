@@ -19,6 +19,7 @@ public final class AppState: ObservableObject {
     // Multi-tab support
     @Published public var openTabs: [APIRequest] = []
     @Published public var selectedTabId: UUID?
+    @Published public var dirtyTabIds: Set<UUID> = []
 
     public var selectedTab: APIRequest? {
         get { openTabs.first { $0.id == selectedTabId } }
@@ -187,6 +188,14 @@ public final class AppState: ObservableObject {
         } catch {
             print("Failed to delete request: \(error)")
         }
+    }
+
+    public func markDirty(_ requestId: UUID) {
+        dirtyTabIds.insert(requestId)
+    }
+
+    public func clearDirty(_ requestId: UUID) {
+        dirtyTabIds.remove(requestId)
     }
 
     public func updateRequest(_ request: APIRequest) async {

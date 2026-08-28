@@ -197,12 +197,16 @@ struct TabBarView: View {
                     TabItemViewDS(
                         request: request,
                         isSelected: request.id == appState.selectedTabId,
+                        isDirty: appState.dirtyTabIds.contains(request.id),
                         onSelect: {
                             appState.selectedTabId = request.id
                             appState.selectedRequest = request
                         },
                         onClose: {
                             appState.closeTab(request)
+                        },
+                        onRename: { newName in
+                            Task { await appState.renameRequest(request, newName: newName) }
                         }
                     )
                 }
@@ -233,31 +237,67 @@ struct TabBarView: View {
 struct TabItemViewDS: View {
     let request: APIRequest
     let isSelected: Bool
+    let isDirty: Bool
     let onSelect: () -> Void
     let onClose: () -> Void
+    let onRename: (String) -> Void
     @State private var isHovered = false
+    @State private var isEditing = false
+    @State private var editingName = ""
+    @FocusState private var nameFocused: Bool
 
     var body: some View {
         HStack(spacing: DS.Spacing.xs) {
             MethodBadge(method: request.method, compact: true)
 
-            Text(request.name)
-                .font(DS.Font.body)
-                .foregroundStyle(isSelected ? Color.dsTextPrim : Color.dsTextSec)
-                .lineLimit(1)
-                .frame(maxWidth: 110, alignment: .leading)
-
-            Button { onClose() } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 9, weight: .medium))
-                    .foregroundStyle(Color.dsTextTertiary)
-                    .frame(width: 14, height: 14)
-                    .background(isHovered ? Color.dsBord : Color.clear)
-                    .clipShape(Circle())
+            if isEditing {
+                TextField("", text: $editingName)
+                    .textFieldStyle(.plain)
+                    .font(DS.Font.body)
+                    .foregroundStyle(Color.dsTextPrim)
+                    .frame(maxWidth: 110, alignment: .leading)
+                    .focused($nameFocused)
+                    .onSubmit { commitRename() }
+                    .onKeyPress(.escape) { cancelRename(); return .handled }
+            } else {
+                Text(request.name)
+                    .font(DS.Font.body)
+                    .foregroundStyle(isSelected ? Color.dsTextPrim : Color.dsTextSec)
+                    .lineLimit(1)
+                    .frame(maxWidth: 110, alignment: .leading)
+                    .onTapGesture(count: 2) { startEditing() }
             }
-            .buttonStyle(.plain)
-            .opacity(isHovered || isSelected ? 1 : 0)
-            .frame(width: 14)
+
+            // Dirty indicator — green dot when unsaved changes
+            if isDirty && !isEditing {
+                Circle()
+                    .fill(Color.dsSuccess)
+                    .frame(width: 6, height: 6)
+            }
+
+            // Close button — or hidden spacer to keep layout stable
+            if isEditing {
+                // Commit / cancel buttons while editing
+                Button { commitRename() } label: {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(Color.dsSuccess)
+                        .frame(width: 14, height: 14)
+                }
+                .buttonStyle(.plain)
+            } else {
+                Button { onClose() } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundStyle(Color.dsTextTertiary)
+                        .frame(width: 14, height: 14)
+                        .background(isHovered ? Color.dsBord : Color.clear)
+                        .clipShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .opacity(isHovered || isSelected ? 1 : 0)
+                .frame(width: 14)
+            }
         }
         .padding(.horizontal, DS.Spacing.sm)
         .padding(.vertical, DS.Spacing.xs)
@@ -274,8 +314,28 @@ struct TabItemViewDS: View {
             }
         }
         .contentShape(Rectangle())
-        .onTapGesture { onSelect() }
+        .onTapGesture { if !isEditing { onSelect() } }
         .onHover { isHovered = $0 }
+    }
+
+    private func startEditing() {
+        editingName = request.name
+        isEditing = true
+        nameFocused = true
+    }
+
+    private func commitRename() {
+        let trimmed = editingName.trimmingCharacters(in: .whitespacesAndNewlines)
+        isEditing = false
+        nameFocused = false
+        if !trimmed.isEmpty && trimmed != request.name {
+            onRename(trimmed)
+        }
+    }
+
+    private func cancelRename() {
+        isEditing = false
+        nameFocused = false
     }
 }
 

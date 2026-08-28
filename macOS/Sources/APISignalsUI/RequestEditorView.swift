@@ -28,7 +28,9 @@ public struct RequestEditorView: View {
                     print("Failed to update environment: \(error)")
                 }
                 await appState.selectWorkspace(appState.selectedWorkspace!)
-            }
+            },
+            onMarkDirty: { id in appState.markDirty(id) },
+            onClearDirty: { id in appState.clearDirty(id) }
         ))
     }
 
@@ -55,6 +57,11 @@ public struct RequestEditorView: View {
                let tab = RequestTab(rawValue: raw) {
                 selectedRequestTab = tab
             }
+        }
+        .onKeyPress(.init("s"), phases: .down) { press in
+            guard press.modifiers.contains(.control) else { return .ignored }
+            viewModel.saveRequest()
+            return .handled
         }
     }
 

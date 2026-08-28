@@ -13,12 +13,15 @@ public final class RequestViewModel: ObservableObject {
     @Published public var selectedResponseTab: ResponseTab = .body
     @Published public var scriptTests: [ScriptTest] = []
     @Published public var scriptErrors: [String] = []
+    @Published public var isDirty: Bool = false
     /// Bumped when a cURL import should focus a request editor tab.
     @Published public var editorFocusToken = UUID()
     @Published public var editorFocusTabRaw: String?
 
     private var activeRequestId: UUID?
     private var persistGeneration: UInt64 = 0
+    private let onMarkDirty: (UUID) -> Void
+    private let onClearDirty: (UUID) -> Void
 
     public enum BodyTab: String, CaseIterable {
         case none = "None"
@@ -53,7 +56,9 @@ public final class RequestViewModel: ObservableObject {
         workspaceId: UUID,
         onRequestUpdated: @escaping (APIRequest) async -> Void,
         onHistoryEntry: @escaping (HistoryEntry) async -> Void,
-        onEnvironmentUpdated: @escaping (WorkspaceEnvironment) async -> Void
+        onEnvironmentUpdated: @escaping (WorkspaceEnvironment) async -> Void,
+        onMarkDirty: @escaping (UUID) -> Void = { _ in },
+        onClearDirty: @escaping (UUID) -> Void = { _ in }
     ) {
         self.request = request
         self.networkEngine = networkEngine
@@ -63,15 +68,34 @@ public final class RequestViewModel: ObservableObject {
         self.onRequestUpdated = onRequestUpdated
         self.onHistoryEntry = onHistoryEntry
         self.onEnvironmentUpdated = onEnvironmentUpdated
+        self.onMarkDirty = onMarkDirty
+        self.onClearDirty = onClearDirty
         self.selectedBodyTab = Self.bodyTab(for: request.body)
     }
 
     public func updateRequest() {
-        schedulePersist(delayNanoseconds: 0)
+        markDirty()
+    }
+
+    /// Mark the tab as having unsaved changes.
+    public func markDirty() {
+        isDirty = true
+        onMarkDirty(request.id)
+    }
+
+    /// Save the current request immediately (Ctrl+S).
+    public func saveRequest() {
+        let snapshot = request
+        Task { @MainActor in
+            await onRequestUpdated(snapshot)
+            isDirty = false
+            onClearDirty(snapshot.id)
+        }
     }
 
     /// Persist after a short delay to avoid DB writes on every keystroke.
     public func schedulePersist(delayNanoseconds: UInt64 = 350_000_000) {
+        markDirty()
         persistGeneration += 1
         let generation = persistGeneration
         Task { @MainActor in
@@ -80,6 +104,8 @@ public final class RequestViewModel: ObservableObject {
             }
             guard generation == persistGeneration else { return }
             await onRequestUpdated(request)
+            isDirty = false
+            onClearDirty(request.id)
         }
     }
 
@@ -120,7 +146,7 @@ public final class RequestViewModel: ObservableObject {
             editorFocusTabRaw = nil
         }
         editorFocusToken = UUID()
-        schedulePersist(delayNanoseconds: 0)
+        saveRequest()
     }
 
     public func cancelRequest() {
@@ -142,6 +168,8 @@ public final class RequestViewModel: ObservableObject {
 
         Task {
             await onRequestUpdated(request)
+            isDirty = false
+            onClearDirty(request.id)
 
             // Run pre-request script
             let currentEnvironment = environment
