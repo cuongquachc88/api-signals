@@ -61,9 +61,9 @@ Requires macOS 14+ and Xcode / Swift 6 toolchain.
 ```bash
 cd macOS
 swift build -c release
-cp -f .build/release/APISignalsApp APISignals.app/Contents/MacOS/APISignals
-codesign --force --deep --sign - APISignals.app
-open -n APISignals.app
+cp -f .build/release/APISignalsApp API Signals.app/Contents/MacOS/APISignals
+codesign --force --deep --sign - API Signals.app
+open -n API Signals.app
 ```
 
 Run tests:
@@ -84,7 +84,7 @@ api-signals/
 │   ├── Sources/          # Core, Network, Persistence, Scripting, UI, App
 │   ├── Tests/            # Unit tests
 │   ├── Resources/        # App icon
-│   └── APISignals.app/   # Runnable app bundle
+│   └── API Signals.app/   # Runnable app bundle
 ├── README.md
 └── LICENSE
 ```
