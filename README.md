@@ -58,12 +58,24 @@ The macOS app is the active product surface today.
 
 Requires macOS 14+ and Xcode / Swift 6 toolchain.
 
+**Release:**
+
 ```bash
 cd macOS
 swift build -c release
-cp -f .build/release/APISignalsApp API Signals.app/Contents/MacOS/APISignals
-codesign --force --deep --sign - API Signals.app
-open -n API Signals.app
+cp -f .build/release/APISignalsApp "API Signals.app/Contents/MacOS/APISignals"
+codesign --force --deep --sign - "API Signals.app"
+open -n "API Signals.app"
+```
+
+**Debug:**
+
+```bash
+cd macOS
+swift build
+cp -f .build/debug/APISignalsApp "API Signals.app/Contents/MacOS/APISignals"
+codesign --force --deep --sign - "API Signals.app"
+open -n "API Signals.app"
 ```
 
 Run tests:
