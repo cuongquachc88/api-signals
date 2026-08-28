@@ -69,9 +69,3 @@ Postman-compatible `pm.*` API subset:
 - `pm.test(name, fn)`
 - `pm.expect(value)`
 
-## Windows Strategy
-
-- Share domain model design/spec.
-- Reimplement UI in WinUI 3 (C#).
-- Reimplement infrastructure in C#.
-- Keep file formats identical for cross-platform workspace sharing.

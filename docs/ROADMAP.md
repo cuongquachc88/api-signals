@@ -36,12 +36,6 @@
 - [ ] Team sharing via file
 - [ ] Request diffs
 
-## Phase 5: Windows (Weeks 19-26)
-- [ ] C# domain model implementation
-- [ ] WinUI 3 UI
-- [ ] Feature parity with macOS
-- [ ] Windows packaging
-
 ## Ongoing
 - [ ] Performance optimization
 - [ ] Documentation

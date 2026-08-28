@@ -597,8 +597,8 @@
     <p class="section-lead">macOS 14+ and a Swift 6 toolchain. Clone, build, codesign, open.</p>
     <pre class="code-block"><span class="cm"># from repo root</span>
 <span class="cmd">cd</span> macOS
-<span class="cmd">swift build</span>
-<span class="cmd">cp</span> -f .build/debug/APISignalsApp APISignals.app/Contents/MacOS/APISignals
+<span class="cmd">swift build</span> -c release
+<span class="cmd">cp</span> -f .build/release/APISignalsApp APISignals.app/Contents/MacOS/APISignals
 <span class="cmd">codesign</span> --force --deep --sign - APISignals.app
 <span class="cmd">open</span> -n APISignals.app</pre>
   </section>

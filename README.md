@@ -21,7 +21,7 @@
 
 **API Signals** is an open-source Postman-style API client that runs as a real native macOS app. Collections, environments, history, and scripts stay on your machine in SQLite — exportable anytime as plain files.
 
-Windows support is planned; the macOS app is the active product surface today.
+The macOS app is the active product surface today.
 
 ## Screenshots
 
@@ -53,7 +53,6 @@ Windows support is planned; the macOS app is the active product surface today.
 | Platform | Status | Stack |
 |---|---|---|
 | **macOS** | Active (MVP+) | Swift 6, SwiftUI, AppKit, GRDB |
-| **Windows** | Planned | C#, WinUI 3 |
 
 ## Build (macOS)
 
@@ -61,8 +60,8 @@ Requires macOS 14+ and Xcode / Swift 6 toolchain.
 
 ```bash
 cd macOS
-swift build
-cp -f .build/debug/APISignalsApp APISignals.app/Contents/MacOS/APISignals
+swift build -c release
+cp -f .build/release/APISignalsApp APISignals.app/Contents/MacOS/APISignals
 codesign --force --deep --sign - APISignals.app
 open -n APISignals.app
 ```
@@ -86,7 +85,6 @@ api-signals/
 │   ├── Tests/            # Unit tests
 │   ├── Resources/        # App icon
 │   └── APISignals.app/   # Runnable app bundle
-├── windows/              # Windows app (planned)
 ├── README.md
 └── LICENSE
 ```
