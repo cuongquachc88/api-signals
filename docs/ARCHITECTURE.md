@@ -69,3 +69,22 @@ Postman-compatible `pm.*` API subset:
 - `pm.test(name, fn)`
 - `pm.expect(value)`
 
+## GraphQL
+
+Schema fetching and autocomplete are built into the GraphQL body editor:
+
+- `GraphQLSchema` (Core) — type-safe model for types, fields, arguments, enums, input types.
+- `GraphQLIntrospection` (Core) — standard introspection query string + JSON parser that unwraps `NON_NULL`/`LIST` wrappers to resolve leaf type names.
+- `GraphQLSchemaFetcher` (Network) — Swift actor that POSTs the introspection query to the endpoint URL; caches results per URL; `invalidate(endpoint:)` forces a refresh.
+- `GraphQLQueryEditor` (UI) — `NSTextView`-backed editor with syntax highlighting (keywords, directives, fields, variables, types, comments) and `NSTextViewDelegate` autocomplete using the fetched schema for context-aware field/type suggestions.
+
+## Save Model
+
+Requests are **not** auto-saved on every keystroke. Changes set a dirty flag (`isDirty`) which shows as a pulsing green dot on the tab. **⌘S** persists the request to SQLite and clears the dirty state. Sending a request also triggers a save.
+
+## Tab Management
+
+- `AppState.openTabs` — ordered list of open request tabs.
+- `AppState.dirtyTabIds: Set<UUID>` — tracks which tabs have unsaved changes.
+- Double-clicking a tab label opens an inline `TextField` for renaming; `Return` commits, `Escape` cancels.
+

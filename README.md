@@ -46,6 +46,9 @@ The macOS app is the active product surface today.
 - **Import / export** — Postman Collection v2.1, OpenAPI, HAR, native `.apisignals.json`
 - **Realtime** — WebSocket and Server-Sent Events
 - **Scripts** — pre-request / test scripts (`pm.*` subset)
+- **GraphQL** — schema fetching via introspection, syntax highlighting, field autocomplete
+- **Tab rename** — double-click any tab label to rename inline
+- **⌘S save** — explicit save with pulsing green dot indicator for unsaved changes
 - **Offline-first** — GRDB / SQLite, no account required
 
 ## Platforms
