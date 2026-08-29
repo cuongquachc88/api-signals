@@ -59,7 +59,7 @@ public struct RequestEditorView: View {
             }
         }
         .onKeyPress(.init("s"), phases: .down) { press in
-            guard press.modifiers.contains(.control) else { return .ignored }
+            guard press.modifiers.contains(.command) else { return .ignored }
             viewModel.saveRequest()
             return .handled
         }
