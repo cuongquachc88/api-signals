@@ -10,14 +10,35 @@ public struct ContentView: View {
     @State private var isQuickOpenPresented = false
     @State private var isMockServerPresented = false
     @AppStorage("colorScheme") private var colorSchemePref: String = "auto"
+    @AppStorage("sidebarWidth") private var sidebarWidth: Double = 250
+    @State private var isDragging = false
 
     public init() {}
 
     public var body: some View {
-        HSplitView {
+        HStack(spacing: 0) {
             SidebarView(appState: appState)
-                .frame(minWidth: 200, idealWidth: 260, maxWidth: 400)
+                .frame(width: max(180, min(CGFloat(sidebarWidth), 400)))
                 .frame(maxHeight: .infinity)
+
+            Rectangle()
+                .fill(Color.dsBorder)
+                .frame(width: 1)
+                .frame(maxHeight: .infinity)
+                .gesture(
+                    DragGesture(minimumDistance: 1)
+                        .onChanged { value in
+                            let newWidth = sidebarWidth + value.translation.width
+                            sidebarWidth = max(180, min(newWidth, 400))
+                        }
+                )
+                .onHover { inside in
+                    if inside {
+                        NSCursor.resizeLeftRight.push()
+                    } else {
+                        NSCursor.pop()
+                    }
+                }
 
             VStack(spacing: 0) {
                 AppChromeBar(

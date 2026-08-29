@@ -573,7 +573,7 @@ struct CodeSnippetView: View {
             .background(Color.dsSurf)
         }
         .background(Color.dsBg)
-        .frame(minWidth: 560, minHeight: 360)
+        .frame(minWidth: 760, minHeight: 360)
     }
 }
 

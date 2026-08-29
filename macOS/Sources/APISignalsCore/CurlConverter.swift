@@ -270,7 +270,17 @@ public struct CurlConverter {
             parts.append("-d '\(text)'")
         case .json(let text):
             parts.append("-H \"Content-Type: application/json\"")
-            parts.append("-d '\(text)'")
+            let compactJSON: String
+            if let data = text.data(using: .utf8),
+               let obj = try? JSONSerialization.jsonObject(with: data),
+               let compactData = try? JSONSerialization.data(withJSONObject: obj, options: []),
+               let compact = String(data: compactData, encoding: .utf8) {
+                compactJSON = compact
+            } else {
+                compactJSON = text.components(separatedBy: .whitespacesAndNewlines)
+                    .filter { !$0.isEmpty }.joined(separator: " ")
+            }
+            parts.append("-d '\(compactJSON.replacingOccurrences(of: "'", with: "'\\''"))'")
         case .urlEncoded(let params):
             let encoded = params.filter(\.isEnabled).map { "\($0.key)=\($0.value)" }.joined(separator: "&")
             parts.append("-H \"Content-Type: application/x-www-form-urlencoded\"")

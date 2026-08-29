@@ -843,37 +843,63 @@ struct EnvironmentEditorSheet: View {
 
             // Variable rows
             List {
+                // Column headers
+                HStack(spacing: DS.Spacing.sm) {
+                    Color.clear.frame(width: 20)
+                    Text("KEY")
+                        .font(DS.Font.captionMono)
+                        .foregroundStyle(Color.dsTextTertiary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Text("VALUE")
+                        .font(DS.Font.captionMono)
+                        .foregroundStyle(Color.dsTextTertiary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Color.clear.frame(width: 56)
+                }
+                .listRowSeparator(.hidden)
+                .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
+
                 ForEach($environment.variables) { $variable in
                     HStack(spacing: DS.Spacing.sm) {
                         Toggle("", isOn: $variable.isEnabled)
                             .toggleStyle(.checkbox)
                             .labelsHidden()
+                            .frame(width: 20)
                         TextField("Key", text: $variable.key)
                             .textFieldStyle(.roundedBorder)
                             .font(DS.Font.bodyMono)
+                            .frame(maxWidth: .infinity)
                         if variable.type == .secret {
                             SecureField("Value", text: $variable.value)
                                 .textFieldStyle(.roundedBorder)
                                 .font(DS.Font.bodyMono)
+                                .frame(maxWidth: .infinity)
                         } else {
                             TextField("Value", text: $variable.value)
                                 .textFieldStyle(.roundedBorder)
                                 .font(DS.Font.bodyMono)
+                                .frame(maxWidth: .infinity)
                         }
-                        Picker("", selection: $variable.type) {
-                            Image(systemName: "text.alignleft").tag(Variable.VariableType.`default`)
-                            Image(systemName: "eye.slash").tag(Variable.VariableType.secret)
+                        Button {
+                            withAnimation { variable.type = variable.type == .secret ? .default : .secret }
+                        } label: {
+                            Image(systemName: variable.type == .secret ? "eye.slash.fill" : "eye")
+                                .font(.system(size: 12))
+                                .foregroundStyle(variable.type == .secret ? Color.dsAcc : Color.dsTextTertiary)
+                                .frame(width: 24, height: 24)
                         }
-                        .pickerStyle(.segmented)
-                        .frame(width: 64)
+                        .buttonStyle(.plain)
+                        .help(variable.type == .secret ? "Secret (masked)" : "Plain text")
                         Button {
                             environment.variables.removeAll { $0.id == variable.id }
                         } label: {
                             Image(systemName: "minus.circle.fill")
+                                .font(.system(size: 14))
                                 .foregroundStyle(Color.dsError)
                         }
                         .buttonStyle(.plain)
                     }
+                    .padding(.vertical, 2)
                 }
 
                 Button {
@@ -884,11 +910,12 @@ struct EnvironmentEditorSheet: View {
                         .foregroundStyle(Color.dsAcc)
                 }
                 .buttonStyle(.plain)
+                .padding(.vertical, DS.Spacing.xs)
             }
             .listStyle(.plain)
         }
         .background(Color.dsSurf)
-        .frame(minWidth: 600, minHeight: 400)
+        .frame(width: 560, height: 420)
     }
 }
 
