@@ -93,20 +93,9 @@ public final class RequestViewModel: ObservableObject {
         }
     }
 
-    /// Persist after a short delay to avoid DB writes on every keystroke.
+    /// Mark dirty only — actual persist happens on Ctrl+S or sendRequest.
     public func schedulePersist(delayNanoseconds: UInt64 = 350_000_000) {
         markDirty()
-        persistGeneration += 1
-        let generation = persistGeneration
-        Task { @MainActor in
-            if delayNanoseconds > 0 {
-                try? await Task.sleep(nanoseconds: delayNanoseconds)
-            }
-            guard generation == persistGeneration else { return }
-            await onRequestUpdated(request)
-            isDirty = false
-            onClearDirty(request.id)
-        }
     }
 
     /// Apply a parsed cURL import into the editor and persist once.
