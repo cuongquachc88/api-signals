@@ -8,6 +8,7 @@ import APISignalsScripting
 
 struct ResponseView: View {
     @ObservedObject var viewModel: RequestViewModel
+    @State private var isDiffPresented = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -24,6 +25,8 @@ struct ResponseView: View {
                     ResponseCookiesView(cookies: response.cookies)
                 case .tests:
                     TestsListView(tests: viewModel.scriptTests, errors: viewModel.scriptErrors)
+                case .timing:
+                    TimingWaterfallView(timing: response.timing, size: response.size)
                 }
             } else if viewModel.isLoading {
                 loadingView
@@ -67,6 +70,23 @@ struct ResponseView: View {
             }
 
             Spacer()
+
+            // Compare button
+            if viewModel.response != nil && !viewModel.history.isEmpty {
+                Button {
+                    isDiffPresented = true
+                } label: {
+                    Label("Compare", systemImage: "arrow.left.arrow.right")
+                        .font(DS.Font.caption)
+                        .foregroundStyle(Color.dsTextSec)
+                }
+                .buttonStyle(.plain)
+                .sheet(isPresented: $isDiffPresented) {
+                    if let response = viewModel.response {
+                        ResponseDiffView(currentResponse: response, history: viewModel.history)
+                    }
+                }
+            }
 
             // Tab picker (underline style)
             if viewModel.response != nil {
@@ -376,25 +396,23 @@ struct ResponseBodyView: View {
         .background(Color.dsBg)
     }
 
+    @ViewBuilder
     private func prettyContent(data: Data, mime: String) -> some View {
-        let text: String = {
-            if mime.contains("json") || looksLikeJSON(data),
-               let raw = String(data: data, encoding: .utf8),
-               let pretty = try? JSONFormatter.beautify(raw) {
-                return pretty
+        if mime.contains("json") || looksLikeJSON(data) {
+            JSONTreeView(data: data)
+                .background(Color.dsBg)
+        } else {
+            let text = String(data: data, encoding: .utf8) ?? "(binary: \(data.count) bytes)"
+            ScrollView {
+                Text(text)
+                    .font(DS.Font.bodyMono)
+                    .foregroundStyle(Color.dsTextPrim)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(DS.Spacing.lg)
+                    .textSelection(.enabled)
             }
-            return String(data: data, encoding: .utf8) ?? "(binary: \(data.count) bytes)"
-        }()
-
-        return ScrollView {
-            Text(text)
-                .font(DS.Font.bodyMono)
-                .foregroundStyle(Color.dsTextPrim)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(DS.Spacing.lg)
-                .textSelection(.enabled)
+            .background(Color.dsBg)
         }
-        .background(Color.dsBg)
     }
 
     private func looksLikeJSON(_ data: Data) -> Bool {

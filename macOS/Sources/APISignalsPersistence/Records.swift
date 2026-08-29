@@ -47,6 +47,7 @@ struct CollectionRecord: Codable, FetchableRecord, PersistableRecord {
     var authJson: String?
     var preRequestScript: String?
     var postResponseScript: String?
+    var documentation: String?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -59,6 +60,7 @@ struct CollectionRecord: Codable, FetchableRecord, PersistableRecord {
         case authJson = "auth_json"
         case preRequestScript = "pre_request_script"
         case postResponseScript = "post_response_script"
+        case documentation
     }
 
     init(from collection: Collection) {
@@ -72,6 +74,7 @@ struct CollectionRecord: Codable, FetchableRecord, PersistableRecord {
         self.authJson = try? JSON.encode(collection.auth)
         self.preRequestScript = collection.preRequestScript
         self.postResponseScript = collection.postResponseScript
+        self.documentation = collection.documentation
     }
 
     func toCollection() -> Collection {
@@ -85,7 +88,8 @@ struct CollectionRecord: Codable, FetchableRecord, PersistableRecord {
             variables: JSON.decode(variablesJson, as: [Variable].self, default: []),
             auth: JSON.decode(authJson, as: Auth.self, default: .none),
             preRequestScript: preRequestScript,
-            postResponseScript: postResponseScript
+            postResponseScript: postResponseScript,
+            documentation: documentation
         )
     }
 }

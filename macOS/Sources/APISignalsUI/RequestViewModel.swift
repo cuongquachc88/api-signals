@@ -14,6 +14,7 @@ public final class RequestViewModel: ObservableObject {
     @Published public var scriptTests: [ScriptTest] = []
     @Published public var scriptErrors: [String] = []
     @Published public var isDirty: Bool = false
+    @Published public var history: [HistoryEntry] = []
     /// Bumped when a cURL import should focus a request editor tab.
     @Published public var editorFocusToken = UUID()
     @Published public var editorFocusTabRaw: String?
@@ -37,11 +38,14 @@ public final class RequestViewModel: ObservableObject {
         case headers = "Headers"
         case cookies = "Cookies"
         case tests = "Tests"
+        case timing = "Timing"
     }
 
     private let networkEngine: URLSessionNetworkEngine
     private let environment: WorkspaceEnvironment?
     private let collection: Collection?
+
+    public var environmentVariables: [Variable] { environment?.variables ?? [] }
     private let workspaceId: UUID
     private let onRequestUpdated: (APIRequest) async -> Void
     private let onHistoryEntry: (HistoryEntry) async -> Void

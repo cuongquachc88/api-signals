@@ -467,6 +467,7 @@ public struct Collection: Identifiable, Sendable, Equatable, Codable {
     public var auth: Auth
     public var preRequestScript: String?
     public var postResponseScript: String?
+    public var documentation: String?
 
     public init(
         id: UUID = UUID(),
@@ -478,7 +479,8 @@ public struct Collection: Identifiable, Sendable, Equatable, Codable {
         variables: [Variable] = [],
         auth: Auth = .none,
         preRequestScript: String? = nil,
-        postResponseScript: String? = nil
+        postResponseScript: String? = nil,
+        documentation: String? = nil
     ) {
         self.id = id
         self.workspaceId = workspaceId
@@ -490,6 +492,7 @@ public struct Collection: Identifiable, Sendable, Equatable, Codable {
         self.auth = auth
         self.preRequestScript = preRequestScript
         self.postResponseScript = postResponseScript
+        self.documentation = documentation
     }
 }
 

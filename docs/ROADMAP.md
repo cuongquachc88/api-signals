@@ -48,6 +48,16 @@
 - [x] Multi-tab support with inline rename (double-click)
 - [x] Dirty indicator — pulsing green dot on unsaved tabs
 - [x] ⌘S explicit save (no auto-save on keystroke)
+- [x] Tab badge counts (Params N, Headers N, Auth, Body)
+- [x] Resizable sidebar (drag to resize, 200–400pt)
+- [x] URL syntax highlighting (scheme, host, path, query, {{variables}})
+- [x] Response timing waterfall (DNS, Connect, TLS, TTFB, Download breakdown)
+- [x] Command palette ⌘K / ⌘P (requests + actions)
+- [x] JSON tree with click-to-copy JSON paths
+- [x] Request chaining chain-snippet helper in Scripts tab
+- [x] Response diff tool (compare current vs history)
+- [x] Collection documentation (Markdown editor + WKWebView preview)
+- [x] Mock server (local NWListener stubs, per-route method/path/status/body)
 
 ## Ongoing
 - [ ] Performance optimization

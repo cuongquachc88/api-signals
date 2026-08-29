@@ -38,17 +38,22 @@ public actor URLSessionNetworkEngine: NetworkEngine {
             return .failure(error)
         }
 
-        let startTime = Date()
         let requestId = request.id
         let activeSession = session(for: request.settings)
+        let delegate = MetricsDelegate()
+        let metricsSession = URLSession(
+            configuration: activeSession.configuration,
+            delegate: delegate,
+            delegateQueue: nil
+        )
 
         return await withCheckedContinuation { continuation in
-            let task = activeSession.dataTask(with: urlRequest) { [weak self] data, response, error in
-                let totalTime = Date().timeIntervalSince(startTime)
+            let task = metricsSession.dataTask(with: urlRequest) { [weak self] data, response, error in
                 let requestUrl = urlRequest.url
 
                 Task { [weak self] in
                     await self?.removeTask(requestId)
+                    let metrics = await delegate.collectedMetrics
 
                     if let error = error as NSError? {
                         let requestError = URLSessionNetworkEngine.mapError(error)
@@ -67,10 +72,11 @@ public actor URLSessionNetworkEngine: NetworkEngine {
                         cookies = await CookieJar.shared.cookies(for: url)
                     }
 
+                    let timing = URLSessionNetworkEngine.extractTiming(from: metrics)
                     let apiResponse = URLSessionNetworkEngine.mapResponse(
                         httpResponse: httpResponse,
                         data: data,
-                        totalTime: totalTime,
+                        timing: timing,
                         cookies: cookies
                     )
 
@@ -88,15 +94,47 @@ public actor URLSessionNetworkEngine: NetworkEngine {
         activeTasks.removeValue(forKey: requestId)
     }
 
-    private func addTask(_ id: UUID, _ task: URLSessionDataTask) {
-        activeTasks[id] = task
-    }
-
     private func removeTask(_ id: UUID) {
         activeTasks.removeValue(forKey: id)
     }
 
-    private static func mapResponse(httpResponse: HTTPURLResponse, data: Data?, totalTime: TimeInterval, cookies: [Cookie] = []) -> APIResponse {
+    private static func extractTiming(from metrics: URLSessionTaskMetrics?) -> RequestTiming {
+        guard let metrics = metrics,
+              let tx = metrics.transactionMetrics.last else {
+            return RequestTiming(total: 0)
+        }
+
+        let total = metrics.taskInterval.duration
+
+        var dns: TimeInterval? = nil
+        if let start = tx.domainLookupStartDate, let end = tx.domainLookupEndDate {
+            dns = end.timeIntervalSince(start)
+        }
+
+        var connect: TimeInterval? = nil
+        if let start = tx.connectStartDate, let end = tx.connectEndDate {
+            connect = end.timeIntervalSince(start)
+        }
+
+        var tls: TimeInterval? = nil
+        if let start = tx.secureConnectionStartDate, let end = tx.secureConnectionEndDate {
+            tls = end.timeIntervalSince(start)
+        }
+
+        var ttfb: TimeInterval = 0
+        if let start = tx.requestStartDate, let end = tx.responseStartDate {
+            ttfb = max(0, end.timeIntervalSince(start))
+        }
+
+        var download: TimeInterval = 0
+        if let start = tx.responseStartDate, let end = tx.responseEndDate {
+            download = max(0, end.timeIntervalSince(start))
+        }
+
+        return RequestTiming(dns: dns, connect: connect, tls: tls, ttfb: ttfb, download: download, total: total)
+    }
+
+    private static func mapResponse(httpResponse: HTTPURLResponse, data: Data?, timing: RequestTiming, cookies: [Cookie] = []) -> APIResponse {
         let headers = httpResponse.allHeaderFields.compactMap { key, value -> Header? in
             guard let keyString = key as? String, let valueString = value as? String else {
                 return nil
@@ -114,7 +152,7 @@ public actor URLSessionNetworkEngine: NetworkEngine {
             headers: headers,
             body: body,
             mimeType: httpResponse.mimeType,
-            timing: RequestTiming(total: totalTime),
+            timing: timing,
             size: ResponseSize(headers: headerSize, body: bodySize, total: headerSize + bodySize),
             cookies: cookies
         )
@@ -139,5 +177,24 @@ public actor URLSessionNetworkEngine: NetworkEngine {
         default:
             return .network(error.localizedDescription)
         }
+    }
+}
+
+// MARK: - Metrics delegate
+
+private final class MetricsDelegate: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
+    private var metrics: URLSessionTaskMetrics?
+    private let lock = NSLock()
+
+    var collectedMetrics: URLSessionTaskMetrics? {
+        lock.lock()
+        defer { lock.unlock() }
+        return metrics
+    }
+
+    func urlSession(_ session: URLSession, task: URLSessionTask, didFinishCollecting metrics: URLSessionTaskMetrics) {
+        lock.lock()
+        self.metrics = metrics
+        lock.unlock()
     }
 }

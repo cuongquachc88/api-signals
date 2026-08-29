@@ -326,6 +326,7 @@ struct CollectionsSidebarNew: View {
     @State private var addingRequestInCollection: UUID?
     @State private var importError: String?
     @State private var showImportError = false
+    @State private var docCollection: Collection?
 
     var body: some View {
         VStack(spacing: 2) {
@@ -364,6 +365,11 @@ struct CollectionsSidebarNew: View {
             Button("OK", role: .cancel) {}
         } message: {
             Text(importError ?? "Unknown error")
+        }
+        .sheet(item: $docCollection) { col in
+            CollectionDocView(collection: col) { updated in
+                Task { _ = try? await appState.collectionRepository.update(updated) }
+            }
         }
     }
 
@@ -452,6 +458,10 @@ struct CollectionsSidebarNew: View {
                     Button("New Request") {
                         Task { await appState.createNewRequest(in: collection.id) }
                         expandedCollections.insert(collection.id)
+                    }
+                    Divider()
+                    Button("Documentation…") {
+                        docCollection = collection
                     }
                     Divider()
                     Button("Export Collection…") {

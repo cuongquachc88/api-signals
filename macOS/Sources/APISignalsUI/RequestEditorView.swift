@@ -58,6 +58,12 @@ public struct RequestEditorView: View {
                 selectedRequestTab = tab
             }
         }
+        .onAppear {
+            viewModel.history = appState.history
+        }
+        .onChange(of: appState.history) { _, history in
+            viewModel.history = history
+        }
         .onKeyPress(.init("s"), phases: .down) { press in
             guard press.modifiers.contains(.command) else { return .ignored }
             viewModel.saveRequest()
@@ -94,7 +100,6 @@ struct RequestURLBar: View {
     @State private var isCodeSheetPresented = false
     @State private var urlText: String = ""
     @State private var curlImportError: String?
-    @FocusState private var isURLFocused: Bool
 
     private let barHeight: CGFloat = 36
 
@@ -129,28 +134,18 @@ struct RequestURLBar: View {
             .menuStyle(.borderlessButton)
             .fixedSize()
 
-            // URL field
-            ZStack(alignment: .leading) {
-                if urlText.isEmpty {
-                    Text("Enter URL or paste cURL…")
-                        .font(DS.Font.urlBar)
-                        .foregroundStyle(Color.dsTextTertiary)
-                        .allowsHitTesting(false)
-                        .padding(.horizontal, DS.Spacing.md)
-                }
-                TextField("", text: $urlText, axis: .vertical)
-                    .font(DS.Font.urlBar)
-                    .foregroundStyle(Color.dsTextPrim)
-                    .textFieldStyle(.plain)
-                    .lineLimit(1)
-                    .focused($isURLFocused)
-                    .padding(.horizontal, DS.Spacing.md)
-                    .onChange(of: urlText) { _, newValue in
-                        handleURLTextChange(newValue)
-                    }
+            // URL field — highlighted with scheme/host/path/query/variable colors
+            HighlightedURLField(
+                text: $urlText,
+                placeholder: urlText.isEmpty ? "Enter URL or paste cURL…" : "",
+                font: NSFont.monospacedSystemFont(ofSize: 13, weight: .regular),
+                variables: viewModel.environmentVariables
+            ) { committed in
+                handleURLTextChange(committed)
             }
             .frame(maxWidth: .infinity)
             .frame(height: barHeight)
+            .padding(.horizontal, DS.Spacing.md)
             .background(Color.dsSurf)
             .clipShape(RoundedRectangle(cornerRadius: DS.Radius.sm))
             .overlay(
@@ -158,6 +153,9 @@ struct RequestURLBar: View {
                     .stroke(curlImportError == nil ? Color.dsBord : Color.dsError, lineWidth: 1)
             )
             .help(curlImportError ?? "Paste a URL or a full cURL command")
+            .onChange(of: urlText) { _, newValue in
+                handleURLTextChange(newValue)
+            }
 
             // Code snippet button — same height
             Button {
@@ -232,7 +230,7 @@ struct RequestURLBar: View {
             url: viewModel.request.url,
             queryParams: viewModel.request.queryParams
         )
-        if force || (!isURLFocused && urlText != next) {
+        if force || urlText != next {
             urlText = next
         }
     }
@@ -249,7 +247,6 @@ struct RequestURLBar: View {
                     url: viewModel.request.url,
                     queryParams: viewModel.request.queryParams
                 )
-                isURLFocused = false
             } catch {
                 curlImportError = "Could not parse cURL — check the command and try again"
                 // Keep the pasted text visible so the user can edit/fix.
@@ -591,6 +588,7 @@ struct ScriptsEditorView: View {
                 title: "Pre-request Script",
                 subtitle: "Runs before the request is sent",
                 icon: "bolt.circle",
+                isPost: false,
                 text: Binding(
                     get: { viewModel.request.preRequestScript ?? "" },
                     set: { viewModel.request.preRequestScript = $0.isEmpty ? nil : $0; viewModel.updateRequest() }
@@ -601,8 +599,9 @@ struct ScriptsEditorView: View {
 
             scriptSection(
                 title: "Post-response Script",
-                subtitle: "Runs after the response is received",
+                subtitle: "Runs after the response is received. Use pm.environment.set() to chain values into the next request.",
                 icon: "checkmark.circle",
+                isPost: true,
                 text: Binding(
                     get: { viewModel.request.postResponseScript ?? "" },
                     set: { viewModel.request.postResponseScript = $0.isEmpty ? nil : $0; viewModel.updateRequest() }
@@ -613,7 +612,7 @@ struct ScriptsEditorView: View {
     }
 
     @ViewBuilder
-    private func scriptSection(title: String, subtitle: String, icon: String, text: Binding<String>) -> some View {
+    private func scriptSection(title: String, subtitle: String, icon: String, isPost: Bool, text: Binding<String>) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: DS.Spacing.sm) {
                 Image(systemName: icon)
@@ -626,6 +625,23 @@ struct ScriptsEditorView: View {
                     Text(subtitle)
                         .font(DS.Font.caption)
                         .foregroundStyle(Color.dsTextSec)
+                }
+                Spacer()
+                if isPost {
+                    Button {
+                        let snippet = """
+                        // Chain: extract value and store for next request
+                        const data = pm.response.json();
+                        pm.environment.set("myVariable", data.token);
+                        """
+                        text.wrappedValue += (text.wrappedValue.isEmpty ? "" : "\n") + snippet
+                        viewModel.updateRequest()
+                    } label: {
+                        Label("Insert Chain Snippet", systemImage: "link.badge.plus")
+                            .font(DS.Font.caption)
+                            .foregroundStyle(Color.dsAcc)
+                    }
+                    .buttonStyle(.plain)
                 }
             }
             .padding(.horizontal, DS.Spacing.lg)

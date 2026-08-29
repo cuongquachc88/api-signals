@@ -49,6 +49,14 @@ The macOS app is the active product surface today.
 - **GraphQL** — schema fetching via introspection, syntax highlighting, field autocomplete
 - **Tab rename** — double-click any tab label to rename inline
 - **⌘S save** — explicit save with pulsing green dot indicator for unsaved changes
+- **URL highlighting** — scheme, host, path, query params, and `{{variables}}` in distinct colors
+- **Timing waterfall** — DNS, Connect, TLS, TTFB, Download breakdown in the Timing tab
+- **Command palette** — ⌘K / ⌘P to search requests and run actions
+- **JSON tree** — collapsible JSON tree with click-to-copy JSON paths (e.g. `$.user.name`)
+- **Response diff** — compare current response against any history entry
+- **Collection docs** — per-collection Markdown editor with live preview
+- **Mock server** — local NWListener stubs (configure method, path, status, body)
+- **Resizable sidebar** — drag to resize between 200–400pt
 - **Offline-first** — GRDB / SQLite, no account required
 
 ## Platforms

@@ -8,17 +8,16 @@ public struct ContentView: View {
     @State private var isSettingsPresented = false
     @State private var isCollectionRunnerPresented = false
     @State private var isQuickOpenPresented = false
+    @State private var isMockServerPresented = false
     @AppStorage("colorScheme") private var colorSchemePref: String = "auto"
 
     public init() {}
 
     public var body: some View {
-        HStack(spacing: 0) {
+        HSplitView {
             SidebarView(appState: appState)
-                .frame(width: 260)
+                .frame(minWidth: 200, idealWidth: 260, maxWidth: 400)
                 .frame(maxHeight: .infinity)
-
-            DSDivider(.vertical)
 
             VStack(spacing: 0) {
                 AppChromeBar(
@@ -27,7 +26,8 @@ public struct ContentView: View {
                     onSSE: { isSSEPresented = true },
                     onWebSocket: { isWebSocketPresented = true },
                     onRun: { isCollectionRunnerPresented = true },
-                    onSettings: { isSettingsPresented = true }
+                    onSettings: { isSettingsPresented = true },
+                    onMockServer: { isMockServerPresented = true }
                 )
                 TabsContainerView(appState: appState)
             }
@@ -42,6 +42,9 @@ public struct ContentView: View {
             QuickOpenViewDS(appState: appState) {
                 isQuickOpenPresented = false
             }
+        }
+        .sheet(isPresented: $isMockServerPresented) {
+            MockServerView()
         }
         .sheet(isPresented: $isCollectionRunnerPresented) {
             if let collection = appState.selectedCollection {
@@ -63,6 +66,16 @@ public struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: .showQuickOpen)) { _ in
             isQuickOpenPresented = true
         }
+        .onKeyPress(.init("k"), phases: .down) { press in
+            guard press.modifiers.contains(.command) else { return .ignored }
+            isQuickOpenPresented = true
+            return .handled
+        }
+        .onKeyPress(.init("p"), phases: .down) { press in
+            guard press.modifiers.contains(.command) else { return .ignored }
+            isQuickOpenPresented = true
+            return .handled
+        }
     }
 
     private var resolvedColorScheme: ColorScheme? {
@@ -83,6 +96,7 @@ struct AppChromeBar: View {
     let onWebSocket: () -> Void
     let onRun: () -> Void
     let onSettings: () -> Void
+    var onMockServer: (() -> Void)? = nil
 
     var body: some View {
         HStack(spacing: DS.Spacing.md) {
@@ -124,6 +138,9 @@ struct AppChromeBar: View {
             HStack(spacing: DS.Spacing.xs) {
                 chromeIconButton("antenna.radiowaves.left.and.right", help: "Server-Sent Events", action: onSSE)
                 chromeIconButton("arrow.up.arrow.down.circle", help: "WebSocket", action: onWebSocket)
+                if let mockAction = onMockServer {
+                    chromeIconButton("server.rack", help: "Mock Server", action: mockAction)
+                }
                 chromeIconButton("play.fill", help: "Run Collection (⌘⇧R)", action: onRun)
                 chromeIconButton("gearshape", help: "Settings (⌘,)", action: onSettings)
             }
@@ -438,7 +455,17 @@ struct EnvironmentQuickSwitcherDS: View {
     }
 }
 
-// MARK: - Quick Open (Spotlight-style)
+// MARK: - Command Palette action
+
+private struct PaletteAction: Identifiable {
+    let id = UUID()
+    let icon: String
+    let title: String
+    let subtitle: String
+    let perform: () -> Void
+}
+
+// MARK: - Quick Open / Command Palette (⌘P / ⌘K)
 
 struct QuickOpenViewDS: View {
     @ObservedObject var appState: AppState
@@ -447,14 +474,61 @@ struct QuickOpenViewDS: View {
     @State private var searchText = ""
     @State private var selectedIndex: Int = 0
 
-    private var filteredRequests: [APIRequest] {
-        if searchText.isEmpty { return Array(appState.requests.prefix(12)) }
+    // Combined result items: requests first, then actions
+    private enum ResultItem: Identifiable {
+        case request(APIRequest, String) // request, collectionName
+        case action(PaletteAction)
+        var id: UUID {
+            switch self {
+            case .request(let r, _): return r.id
+            case .action(let a): return a.id
+            }
+        }
+    }
+
+    private var allActions: [PaletteAction] {
+        [
+            PaletteAction(icon: "plus.circle", title: "New Request", subtitle: "Create a new request in current collection") {
+                if let col = appState.selectedCollection {
+                    Task { await appState.createNewRequest(in: col.id) }
+                }
+                onDismiss()
+            },
+            PaletteAction(icon: "gearshape", title: "Open Settings", subtitle: "Preferences, themes, timeouts") {
+                NotificationCenter.default.post(name: .showSettings, object: nil)
+                onDismiss()
+            },
+            PaletteAction(icon: "play.fill", title: "Run Collection", subtitle: "Run all requests in active collection") {
+                NotificationCenter.default.post(name: .showCollectionRunner, object: nil)
+                onDismiss()
+            },
+            PaletteAction(icon: "arrow.up.arrow.down.circle", title: "Open WebSocket", subtitle: "WebSocket client panel") {
+                onDismiss()
+            },
+            PaletteAction(icon: "antenna.radiowaves.left.and.right", title: "Open SSE Client", subtitle: "Server-Sent Events panel") {
+                onDismiss()
+            }
+        ]
+    }
+
+    private var filteredResults: [ResultItem] {
+        if searchText.isEmpty {
+            let reqs = Array(appState.requests.prefix(8)).map {
+                ResultItem.request($0, collectionName(for: $0))
+            }
+            let acts = allActions.map { ResultItem.action($0) }
+            return reqs + acts
+        }
         let q = searchText.lowercased()
-        return appState.requests.filter {
+        let reqs = appState.requests.filter {
             $0.name.lowercased().contains(q) ||
             ($0.url.url?.absoluteString ?? "").lowercased().contains(q) ||
             $0.method.rawValue.lowercased().contains(q)
-        }
+        }.map { ResultItem.request($0, collectionName(for: $0)) }
+        let acts = allActions.filter {
+            $0.title.lowercased().contains(q) || $0.subtitle.lowercased().contains(q)
+        }.map { ResultItem.action($0) }
+        return reqs + acts
     }
 
     private func collectionName(for request: APIRequest) -> String {
@@ -470,7 +544,7 @@ struct QuickOpenViewDS: View {
                     .foregroundStyle(searchText.isEmpty ? Color.dsTextTertiary : Color.dsAcc)
                     .frame(width: 22)
 
-                TextField("Search by name, URL, or method…", text: $searchText)
+                TextField("Search requests or type a command…", text: $searchText)
                     .textFieldStyle(.plain)
                     .font(.system(size: 17, weight: .regular))
                     .foregroundStyle(Color.dsTextPrim)
@@ -486,17 +560,10 @@ struct QuickOpenViewDS: View {
             }
             .padding(.horizontal, DS.Spacing.xl)
             .padding(.top, DS.Spacing.lg)
-            .padding(.bottom, DS.Spacing.md)
-
-            Text("Jump to any request in this workspace")
-                .font(DS.Font.caption)
-                .foregroundStyle(Color.dsTextTertiary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, DS.Spacing.xl)
-                .padding(.bottom, DS.Spacing.md)
+            .padding(.bottom, DS.Spacing.sm)
 
             // ── Results ───────────────────────────────────────────────
-            if filteredRequests.isEmpty && !searchText.isEmpty {
+            if filteredResults.isEmpty && !searchText.isEmpty {
                 VStack(spacing: DS.Spacing.sm) {
                     Image(systemName: "magnifyingglass")
                         .font(.system(size: 28, weight: .light))
@@ -508,69 +575,23 @@ struct QuickOpenViewDS: View {
                 .frame(maxWidth: .infinity)
                 .frame(height: 120)
                 .padding(.bottom, DS.Spacing.sm)
-            } else if !filteredRequests.isEmpty {
+            } else {
                 Divider().opacity(0.5)
 
                 ScrollViewReader { proxy in
                     ScrollView(.vertical, showsIndicators: false) {
                         LazyVStack(spacing: 2) {
-                            ForEach(Array(filteredRequests.enumerated()), id: \.element.id) { index, request in
-                                QuickOpenRow(
-                                    request: request,
-                                    collectionName: collectionName(for: request),
-                                    isSelected: index == selectedIndex
-                                ) {
-                                    appState.openTab(request)
-                                    onDismiss()
-                                }
-                                .id(index)
+                            ForEach(Array(filteredResults.enumerated()), id: \.element.id) { index, item in
+                                resultRow(for: item, index: index)
+                                    .id(index)
                             }
                         }
                         .padding(.horizontal, DS.Spacing.sm)
                         .padding(.vertical, DS.Spacing.xs)
                     }
-                    .frame(maxHeight: 360)
+                    .frame(maxHeight: 380)
                     .onChange(of: selectedIndex) { _, i in
                         withAnimation(.easeInOut(duration: 0.1)) {
-                            proxy.scrollTo(i, anchor: .center)
-                        }
-                    }
-                }
-            } else {
-                // Empty search — show recent label
-                if !appState.requests.isEmpty {
-                    Divider().opacity(0.5)
-                    HStack {
-                        Text("RECENT")
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundStyle(Color.dsTextTertiary)
-                            .tracking(1)
-                        Spacer()
-                    }
-                    .padding(.horizontal, DS.Spacing.xl)
-                    .padding(.top, DS.Spacing.sm)
-                    .padding(.bottom, DS.Spacing.xs)
-
-                    ScrollViewReader { proxy in
-                        ScrollView(.vertical, showsIndicators: false) {
-                            LazyVStack(spacing: 2) {
-                                ForEach(Array(filteredRequests.enumerated()), id: \.element.id) { index, request in
-                                    QuickOpenRow(
-                                        request: request,
-                                        collectionName: collectionName(for: request),
-                                        isSelected: index == selectedIndex
-                                    ) {
-                                        appState.openTab(request)
-                                        onDismiss()
-                                    }
-                                    .id(index)
-                                }
-                            }
-                            .padding(.horizontal, DS.Spacing.sm)
-                            .padding(.bottom, DS.Spacing.xs)
-                        }
-                        .frame(maxHeight: 320)
-                        .onChange(of: selectedIndex) { _, i in
                             proxy.scrollTo(i, anchor: .center)
                         }
                     }
@@ -578,7 +599,7 @@ struct QuickOpenViewDS: View {
             }
 
             // ── Footer hint bar ───────────────────────────────────────
-            if !filteredRequests.isEmpty {
+            if !filteredResults.isEmpty {
                 Divider().opacity(0.4)
                 HStack(spacing: DS.Spacing.lg) {
                     Spacer()
@@ -592,9 +613,9 @@ struct QuickOpenViewDS: View {
             }
         }
         .background(.regularMaterial)
-        .frame(width: 600)
+        .frame(width: 620)
         .onKeyPress(.downArrow) {
-            selectedIndex = min(selectedIndex + 1, filteredRequests.count - 1)
+            selectedIndex = min(selectedIndex + 1, filteredResults.count - 1)
             return .handled
         }
         .onKeyPress(.upArrow) {
@@ -602,14 +623,42 @@ struct QuickOpenViewDS: View {
             return .handled
         }
         .onKeyPress(.return) {
-            if selectedIndex < filteredRequests.count {
-                appState.openTab(filteredRequests[selectedIndex])
-                onDismiss()
-            }
+            activateItem(at: selectedIndex)
             return .handled
         }
         .onKeyPress(.escape) { onDismiss(); return .handled }
         .onChange(of: searchText) { _, _ in selectedIndex = 0 }
+    }
+
+    private func activateItem(at index: Int) {
+        guard index < filteredResults.count else { return }
+        switch filteredResults[index] {
+        case .request(let r, _):
+            appState.openTab(r)
+            onDismiss()
+        case .action(let a):
+            a.perform()
+        }
+    }
+
+    @ViewBuilder
+    private func resultRow(for item: ResultItem, index: Int) -> some View {
+        let isSelected = index == selectedIndex
+        switch item {
+        case .request(let request, let colName):
+            QuickOpenRow(
+                request: request,
+                collectionName: colName,
+                isSelected: isSelected
+            ) {
+                appState.openTab(request)
+                onDismiss()
+            }
+        case .action(let action):
+            PaletteActionRow(action: action, isSelected: isSelected) {
+                action.perform()
+            }
+        }
     }
 
     private func hintItem(keys: [String], label: String) -> some View {
@@ -676,6 +725,66 @@ struct QuickOpenRow: View {
                     .frame(maxWidth: 160, alignment: .trailing)
 
                 // Arrow indicator when selected
+                Image(systemName: "arrow.turn.down.left")
+                    .font(.system(size: 11))
+                    .foregroundStyle(isSelected ? Color.dsAcc : Color.clear)
+                    .frame(width: 16)
+            }
+            .padding(.horizontal, DS.Spacing.md)
+            .padding(.vertical, 9)
+            .background(
+                RoundedRectangle(cornerRadius: DS.Radius.sm)
+                    .fill(isSelected
+                        ? Color.dsAcc.opacity(0.13)
+                        : isHovered ? Color.primary.opacity(0.04) : Color.clear)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: DS.Radius.sm)
+                    .stroke(isSelected ? Color.dsAcc.opacity(0.3) : Color.clear, lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovered = $0 }
+    }
+}
+
+// MARK: - Palette Action Row
+
+private struct PaletteActionRow: View {
+    let action: PaletteAction
+    let isSelected: Bool
+    let onActivate: () -> Void
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: onActivate) {
+            HStack(spacing: DS.Spacing.md) {
+                Image(systemName: action.icon)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(Color.dsAcc)
+                    .frame(width: 24, alignment: .center)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(action.title)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(Color.dsTextPrim)
+                        .lineLimit(1)
+                    Text(action.subtitle)
+                        .font(.system(size: 11))
+                        .foregroundStyle(Color.dsTextTertiary)
+                        .lineLimit(1)
+                }
+
+                Spacer()
+
+                Text("Action")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(Color.dsTextTertiary)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Color.dsBord.opacity(0.5))
+                    .clipShape(RoundedRectangle(cornerRadius: 4))
+
                 Image(systemName: "arrow.turn.down.left")
                     .font(.system(size: 11))
                     .foregroundStyle(isSelected ? Color.dsAcc : Color.clear)

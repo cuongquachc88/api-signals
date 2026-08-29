@@ -87,4 +87,33 @@ Requests are **not** auto-saved on every keystroke. Changes set a dirty flag (`i
 - `AppState.openTabs` — ordered list of open request tabs.
 - `AppState.dirtyTabIds: Set<UUID>` — tracks which tabs have unsaved changes.
 - Double-clicking a tab label opens an inline `TextField` for renaming; `Return` commits, `Escape` cancels.
+- Tab bar shows badge counts for Params, Headers, Auth, and Body when non-empty.
+
+## URL Highlighting
+
+`HighlightedURLField` — NSViewRepresentable wrapping NSTextField with NSAttributedString coloring. Colors: scheme (tertiary), host (primary), path (secondary), query (accent blue), `{{variables}}` (orange). Parses via `URLComponents` on every change; falls back to plain text for unparseable URLs.
+
+## Response Timing Waterfall
+
+`URLSessionNetworkEngine` now uses a per-request `URLSession` with a `MetricsDelegate` (`URLSessionTaskDelegate`) to capture `URLSessionTaskMetrics`. DNS, connect, TLS, TTFB, and download intervals are extracted from the last `URLSessionTaskTransactionMetrics`. The Timing tab in `ResponseView` renders them as proportional horizontal bars via `TimingWaterfallView`.
+
+## Command Palette
+
+`QuickOpenViewDS` (⌘K / ⌘P) shows interleaved request rows and `PaletteAction` items. Request items open tabs; action items dispatch to `AppState` or post `Notification.Name` triggers.
+
+## JSON Tree View
+
+`JSONTreeView` renders `Data` as a recursive SwiftUI tree using `JSONSerialization`. Each node has a click-to-copy button that writes the JSON path (e.g. `$.user.name`) to the system pasteboard.
+
+## Response Diff
+
+`LineDiff` (Core) — LCS-based line diff producing `[DiffLine]` (unchanged/added/removed). `ResponseDiffView` lets the user pick a history entry and view a side-by-side colored diff of response bodies.
+
+## Collection Documentation
+
+`Collection.documentation: String?` stored in SQLite (migration `v2`). `CollectionDocView` provides a split markdown editor (NSTextView) + WKWebView preview. Accessible via the collection's `⋯` menu → Documentation…
+
+## Mock Server
+
+`MockServer` (Network) — `@MainActor ObservableObject` that wraps an `NWListener` on a configurable localhost port. Routes (`MockRoute` in Core) match by HTTP method and exact or wildcard path. Responses include CORS headers. UI: `MockServerView` sheet launched from the toolbar server.rack icon.
 

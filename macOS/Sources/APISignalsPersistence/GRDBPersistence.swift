@@ -73,6 +73,12 @@ public final class GRDBPersistence {
             }
         }
 
+        migrator.registerMigration("v2") { db in
+            try db.alter(table: "collections") { t in
+                t.add(column: "documentation", .text)
+            }
+        }
+
         try migrator.migrate(dbPool)
     }
 }
