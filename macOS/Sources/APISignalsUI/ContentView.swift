@@ -244,6 +244,7 @@ struct TabItemViewDS: View {
     @State private var isHovered = false
     @State private var isEditing = false
     @State private var editingName = ""
+    @State private var glowPulse = false
     @FocusState private var nameFocused: Bool
 
     var body: some View {
@@ -268,23 +269,21 @@ struct TabItemViewDS: View {
                     .onTapGesture(count: 2) { startEditing() }
             }
 
-            // Dirty indicator — green dot when unsaved changes
+            // Dirty indicator — glowing green dot when unsaved changes
             if isDirty && !isEditing {
                 Circle()
                     .fill(Color.dsSuccess)
-                    .frame(width: 6, height: 6)
+                    .frame(width: 7, height: 7)
+                    .shadow(color: Color.dsSuccess.opacity(glowPulse ? 0.9 : 0.3), radius: glowPulse ? 4 : 2)
+                    .scaleEffect(glowPulse ? 1.15 : 1.0)
+                    .animation(.easeInOut(duration: 1.1).repeatForever(autoreverses: true), value: glowPulse)
+                    .onAppear { glowPulse = true }
+                    .onDisappear { glowPulse = false }
             }
 
-            // Close button — or hidden spacer to keep layout stable
+            // Close button
             if isEditing {
-                // Commit / cancel buttons while editing
-                Button { commitRename() } label: {
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(Color.dsSuccess)
-                        .frame(width: 14, height: 14)
-                }
-                .buttonStyle(.plain)
+                Color.clear.frame(width: 14, height: 14)
             } else {
                 Button { onClose() } label: {
                     Image(systemName: "xmark")
