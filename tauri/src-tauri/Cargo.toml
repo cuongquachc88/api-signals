@@ -1,0 +1,40 @@
+[package]
+name = "api-signals"
+version = "1.0.0"
+description = "API Signals - HTTP API Client"
+authors = ["API Signals"]
+edition = "2021"
+rust-version = "1.77.2"
+
+[lib]
+name = "api_signals_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[[bin]]
+name = "api-signals"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-shell = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-fs = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+rusqlite = { version = "0.31", features = ["bundled"] }
+reqwest = { version = "0.12", features = ["json", "multipart", "stream", "rustls-tls"], default-features = false }
+tokio = { version = "1", features = ["full"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+url = "2"
+axum = "0.7"
+tower = "0.4"
+tower-http = { version = "0.5", features = ["cors"] }
+anyhow = "1"
+thiserror = "1"
+base64 = "0.22"
+mime = "0.3"
+once_cell = "1"
