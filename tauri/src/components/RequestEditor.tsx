@@ -32,16 +32,16 @@ function HighlightedURLInput({ value, onChange, onSend }: { value: string; onCha
     .replace(/\{\{([^}]+)\}\}/g, '<span style="color:#2dd4bf;background:rgba(45,212,191,0.12);border-radius:3px;padding:0 2px">{{$1}}</span>');
 
   return (
-    <div className="flex-1 relative bg-gray-800 rounded border border-gray-700 focus-within:border-blue-500" style={{ minHeight: '34px' }}>
+    <div className="flex-1 relative bg-gray-800 rounded border border-gray-700 focus-within:border-blue-500 h-8">
       {/* visible highlight layer */}
       <div
-        className="absolute inset-0 px-3 py-1.5 text-sm font-mono pointer-events-none overflow-hidden whitespace-pre select-none"
+        className="absolute inset-0 px-3 py-1 text-sm font-mono pointer-events-none overflow-hidden whitespace-pre select-none leading-6"
         aria-hidden="true"
         dangerouslySetInnerHTML={{ __html: highlighted || '<span style="color:#4b5563">https://api.example.com/endpoint</span>' }}
       />
       {/* transparent-text input on top */}
       <input
-        className="relative w-full bg-transparent rounded px-3 py-1.5 text-sm font-mono outline-none"
+        className="relative w-full h-full bg-transparent rounded px-3 py-1 text-sm font-mono outline-none leading-6"
         style={{ color: 'transparent', caretColor: '#e5e7eb', zIndex: 1 }}
         value={value}
         placeholder=""
@@ -81,7 +81,7 @@ function CurlPasteButton({ onImport }: { onImport: (req: Partial<APIRequest>) =>
       <button
         title="Paste cURL"
         onClick={() => setOpen(true)}
-        className="px-2 py-1.5 rounded text-xs text-gray-500 hover:text-gray-300 hover:bg-gray-800 border border-gray-700 shrink-0 font-mono"
+        className="h-8 px-2 rounded text-xs text-gray-500 hover:text-gray-300 hover:bg-gray-800 border border-gray-700 shrink-0 font-mono"
       >
         cURL
       </button>
@@ -180,7 +180,7 @@ export function RequestEditor({ tabId, request }: Props) {
         {/* Method selector */}
         <select
           className={clsx(
-            'bg-gray-800 rounded px-2 py-1.5 text-sm font-bold border border-gray-700 outline-none cursor-pointer',
+            'h-8 bg-gray-800 rounded px-2 text-sm font-bold border border-gray-700 outline-none cursor-pointer shrink-0',
             METHOD_COLORS[request.method] ?? 'text-gray-400'
           )}
           value={request.method}
@@ -194,9 +194,7 @@ export function RequestEditor({ tabId, request }: Props) {
         </select>
 
         {/* cURL paste button */}
-        <CurlPasteButton
-          onImport={(req) => update(req)}
-        />
+        <CurlPasteButton onImport={(req) => update(req)} />
 
         {/* URL input with variable highlighting */}
         <HighlightedURLInput
@@ -208,13 +206,12 @@ export function RequestEditor({ tabId, request }: Props) {
         {/* Send button */}
         <button
           className={clsx(
-            'px-4 py-1.5 rounded text-sm font-medium transition-colors shrink-0',
+            'h-8 px-4 rounded text-sm font-medium transition-colors shrink-0',
             tab?.isLoading
               ? 'bg-red-700 hover:bg-red-600 text-white'
               : 'bg-blue-600 hover:bg-blue-700 text-white'
           )}
           onClick={tab?.isLoading ? undefined : handleSend}
-          disabled={false}
         >
           {tab?.isLoading ? (
             <span className="flex items-center gap-1.5">
@@ -229,7 +226,7 @@ export function RequestEditor({ tabId, request }: Props) {
         {/* Save */}
         {tab?.isDirty && request.collectionId && (
           <button
-            className="px-2 py-1.5 rounded text-xs text-gray-400 hover:text-white border border-gray-700 hover:border-gray-500"
+            className="h-8 px-2 rounded text-xs text-gray-400 hover:text-white border border-gray-700 hover:border-gray-500 shrink-0"
             onClick={handleSave}
             title="Save (Cmd+S)"
           >

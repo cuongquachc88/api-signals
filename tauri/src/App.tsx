@@ -39,7 +39,7 @@ function WorkspaceSwitcher() {
     <div className="relative">
       <button
         onClick={() => setShowDropdown(!showDropdown)}
-        className="flex items-center gap-1.5 px-2 py-1 text-sm font-medium text-gray-200 hover:text-white"
+        className="h-7 flex items-center gap-1.5 px-2 text-sm font-medium text-gray-200 hover:text-white"
       >
         <svg className="w-4 h-4 text-blue-400" viewBox="0 0 16 16" fill="currentColor">
           <rect x="1" y="1" width="6" height="6" rx="1" />
@@ -244,7 +244,7 @@ export default function App() {
               onClick={() => toggleToolPanel(key)}
               title={label}
               className={clsx(
-                'px-2 py-1 rounded text-xs transition-colors',
+                'h-7 px-2 rounded text-xs transition-colors',
                 toolPanel === key
                   ? 'bg-blue-700 text-white'
                   : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800'
@@ -260,7 +260,7 @@ export default function App() {
           <button
             onClick={() => setSnippetRequest(selectedTab.request)}
             title="Code Snippet"
-            className="mr-2 px-2 py-1 rounded text-xs text-gray-500 hover:text-gray-300 hover:bg-gray-800"
+            className="h-7 mr-2 px-2 rounded text-xs text-gray-500 hover:text-gray-300 hover:bg-gray-800"
           >
             {'</>'}  Snippet
           </button>
@@ -271,7 +271,7 @@ export default function App() {
         {/* Settings */}
         <button
           onClick={() => setSettingsOpen(true)}
-          className="ml-2 p-1.5 text-gray-500 hover:text-white rounded hover:bg-gray-800"
+          className="h-7 w-7 ml-2 flex items-center justify-center text-gray-500 hover:text-white rounded hover:bg-gray-800"
           title="Settings"
         >
           <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">

@@ -149,7 +149,7 @@ export function EnvironmentBar() {
       <div className="relative">
         <button
           onClick={() => setShowDropdown(!showDropdown)}
-          className="flex items-center gap-1.5 px-2 py-1 text-xs rounded border border-gray-700 hover:border-gray-500 bg-gray-800 text-gray-300"
+          className="h-7 flex items-center gap-1.5 px-2 text-xs rounded border border-gray-700 hover:border-gray-500 bg-gray-800 text-gray-300"
         >
           <span className={clsx('w-1.5 h-1.5 rounded-full shrink-0', activeEnv ? 'bg-green-500' : 'bg-gray-600')} />
           {activeEnv ? (
