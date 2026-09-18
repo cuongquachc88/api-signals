@@ -244,9 +244,26 @@ export const useAppStore = create<AppState>()(
       const saved = await api.updateRequest(request);
       set(s => {
         const cid = request.collectionId;
-        const col = (s.requestsByCollection[cid] ?? []).map(r => r.id === request.id ? saved : r);
+        // Remove from any old collection bucket if the collectionId changed
+        const newByCol: Record<string, APIRequest[]> = {};
+        for (const key in s.requestsByCollection) {
+          if (key === cid) continue;
+          newByCol[key] = s.requestsByCollection[key].filter(r => r.id !== request.id);
+        }
+        newByCol[cid] = (s.requestsByCollection[cid] ?? [])
+          .filter(r => r.id !== request.id)
+          .concat(saved);
+        // Sort by existing order if present
+        if (s.requestsByCollection[cid]) {
+          const order = s.requestsByCollection[cid].map(r => r.id);
+          newByCol[cid].sort((a, b) => {
+            const ia = order.indexOf(a.id);
+            const ib = order.indexOf(b.id);
+            return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
+          });
+        }
         const tabs = s.tabs.map(t => t.requestId === request.id ? { ...t, request: saved, isDirty: false } : t);
-        return { requestsByCollection: { ...s.requestsByCollection, [cid]: col }, tabs };
+        return { requestsByCollection: newByCol, tabs };
       });
     },
 

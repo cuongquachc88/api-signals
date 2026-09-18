@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { clsx } from 'clsx';
 import { useAppStore } from '../store/appStore';
 import { useRequest } from '../hooks/useRequest';
@@ -155,11 +155,24 @@ export function RequestEditor({ tabId, request }: Props) {
     await sendRequest(tabId);
   };
 
-  const handleSave = async () => {
-    if (tab) {
+  const isHistoryTab = tab?.requestId.endsWith('-history') ?? false;
+
+  const handleSave = useCallback(async () => {
+    if (tab && !isHistoryTab) {
       await saveRequest(tab.request);
     }
-  };
+  }, [tab, isHistoryTab, saveRequest]);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+        e.preventDefault();
+        handleSave();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [handleSave]);
 
   const badgeCount = (tab: typeof TABS[number]) => {
     switch (tab) {
@@ -224,7 +237,7 @@ export function RequestEditor({ tabId, request }: Props) {
         </button>
 
         {/* Save */}
-        {tab?.isDirty && request.collectionId && (
+        {tab?.isDirty && !isHistoryTab && (
           <button
             className="h-8 px-2 rounded text-xs text-gray-400 hover:text-white border border-gray-700 hover:border-gray-500 shrink-0"
             onClick={handleSave}

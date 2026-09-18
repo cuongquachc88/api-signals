@@ -43,9 +43,11 @@
   }
 
   .cm-scroller {
-    font-family: 'SF Mono', 'Fira Code', 'Fira Mono', 'Cascadia Code', 'Consolas', monospace !important;
+    font-family: 'JetBrains Mono', 'SF Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace !important;
     font-size: 13px !important;
-    line-height: 1.6 !important;
+    line-height: 1.7 !important;
+    letter-spacing: 0.01em !important;
+    font-feature-settings: 'liga' 1, 'calt' 1 !important;
   }
 
   .cm-editor.cm-focused {

@@ -441,6 +441,67 @@ describe('AppStore: Settings', () => {
   });
 });
 
+describe('AppStore: saveRequest cross-collection move', () => {
+  beforeEach(() => vi.mocked(invoke).mockReset());
+
+  it('removes request from old collection bucket when collectionId changes', async () => {
+    const req = makeRequest('req-1', 'col-1');
+    (await import('../store/appStore')).useAppStore.setState({
+      requestsByCollection: {
+        'col-1': [req],
+        'col-2': [],
+      },
+      tabs: [],
+    });
+
+    const moved = { ...req, collectionId: 'col-2' };
+    vi.mocked(invoke).mockResolvedValueOnce(moved);
+
+    await (await import('../store/appStore')).useAppStore.getState().saveRequest(moved);
+
+    const after = (await import('../store/appStore')).useAppStore.getState();
+    expect(after.requestsByCollection['col-1']).toHaveLength(0);
+    expect(after.requestsByCollection['col-2']).toHaveLength(1);
+    expect(after.requestsByCollection['col-2'][0].id).toBe('req-1');
+  });
+
+  it('updates request in same collection without ghost', async () => {
+    const req = makeRequest('req-1', 'col-1');
+    (await import('../store/appStore')).useAppStore.setState({
+      requestsByCollection: { 'col-1': [req] },
+      tabs: [],
+    });
+
+    const updated = { ...req, name: 'Renamed' };
+    vi.mocked(invoke).mockResolvedValueOnce(updated);
+
+    await (await import('../store/appStore')).useAppStore.getState().saveRequest(updated);
+
+    const after = (await import('../store/appStore')).useAppStore.getState();
+    expect(after.requestsByCollection['col-1']).toHaveLength(1);
+    expect(after.requestsByCollection['col-1'][0].name).toBe('Renamed');
+  });
+
+  it('clears isDirty on the open tab after save', async () => {
+    const req = makeRequest('req-1', 'col-1');
+    (await import('../store/appStore')).useAppStore.setState({
+      requestsByCollection: { 'col-1': [req] },
+      tabs: [],
+    });
+    (await import('../store/appStore')).useAppStore.getState().openTab(req);
+    const tabId = (await import('../store/appStore')).useAppStore.getState().tabs[0].id;
+    (await import('../store/appStore')).useAppStore.getState().updateTabRequest(tabId, { name: 'Changed' });
+
+    const saved = { ...req, name: 'Changed' };
+    vi.mocked(invoke).mockResolvedValueOnce(saved);
+    await (await import('../store/appStore')).useAppStore.getState().saveRequest(saved);
+
+    const after = (await import('../store/appStore')).useAppStore.getState();
+    expect(after.tabs[0].isDirty).toBe(false);
+    expect(after.tabs[0].request.name).toBe('Changed');
+  });
+});
+
 describe('AppStore: deleteWorkspace', () => {
   beforeEach(() => vi.mocked(invoke).mockReset());
 

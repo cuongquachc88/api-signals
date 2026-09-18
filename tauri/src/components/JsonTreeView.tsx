@@ -1,44 +1,56 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState } from 'react';
 import { clsx } from 'clsx';
 
-interface JsonNodeProps {
-  data: unknown;
-  keyName?: string;
-  depth?: number;
-  defaultExpanded?: boolean;
+const INDENT = 16; // px per depth level
+
+function PrimitiveValue({ value }: { value: unknown }) {
+  if (value === null) return <span className="text-gray-500 font-mono text-xs">null</span>;
+  if (typeof value === 'boolean') return <span className="text-green-400 font-mono text-xs">{String(value)}</span>;
+  if (typeof value === 'number') return <span className="text-blue-300 font-mono text-xs">{String(value)}</span>;
+  if (typeof value === 'string') {
+    const str = value.length > 120 ? value.slice(0, 120) + '…' : value;
+    return <span className="text-amber-300 font-mono text-xs break-all">"{str}"</span>;
+  }
+  return <span className="text-gray-400 font-mono text-xs">{String(value)}</span>;
 }
 
-function JsonNode({ data, keyName, depth = 0, defaultExpanded = true }: JsonNodeProps) {
-  const [expanded, setExpanded] = useState(defaultExpanded && depth < 2);
+function JsonNode({
+  data,
+  keyName,
+  depth,
+  isLast,
+}: {
+  data: unknown;
+  keyName?: string;
+  depth: number;
+  isLast: boolean;
+}) {
+  const isExpandable = data !== null && typeof data === 'object';
+  const isArray = Array.isArray(data);
+  const [expanded, setExpanded] = useState(depth < 2);
+
+  const indentPx = depth * INDENT;
 
   const copyValue = (e: React.MouseEvent) => {
     e.stopPropagation();
     navigator.clipboard.writeText(JSON.stringify(data, null, 2));
   };
 
-  const isExpandable = data !== null && typeof data === 'object';
-  const isArray = Array.isArray(data);
-
+  // ── Primitive ────────────────────────────────────────────────────────────────
   if (!isExpandable) {
-    const primitive = data;
     return (
-      <div className="flex items-baseline gap-1 group pl-1 hover:bg-white/5 rounded">
+      <div
+        className="flex items-baseline gap-1 group hover:bg-white/5 rounded px-1 py-px"
+        style={{ paddingLeft: `${indentPx + 12}px` }}
+      >
         {keyName !== undefined && (
-          <span className="text-purple-300 shrink-0 font-mono text-xs">"{keyName}":</span>
+          <span className="text-purple-300 font-mono text-xs shrink-0">"{keyName}":</span>
         )}
-        <span className={clsx('font-mono text-xs', {
-          'text-amber-300': typeof primitive === 'string',
-          'text-blue-300': typeof primitive === 'number',
-          'text-green-300': typeof primitive === 'boolean',
-          'text-gray-500': primitive === null,
-        })}>
-          {primitive === null ? 'null' : typeof primitive === 'string'
-            ? `"${(primitive as string).length > 100 ? (primitive as string).slice(0, 100) + '...' : primitive}"`
-            : String(primitive)}
-        </span>
+        <PrimitiveValue value={data} />
+        {!isLast && <span className="text-gray-600 font-mono text-xs">,</span>}
         <button
           onClick={copyValue}
-          className="opacity-0 group-hover:opacity-100 text-gray-600 hover:text-gray-400 text-[10px] ml-1"
+          className="opacity-0 group-hover:opacity-100 text-gray-600 hover:text-gray-400 text-[10px] ml-auto shrink-0"
         >
           copy
         </button>
@@ -46,57 +58,65 @@ function JsonNode({ data, keyName, depth = 0, defaultExpanded = true }: JsonNode
     );
   }
 
+  // ── Object / Array ───────────────────────────────────────────────────────────
   const entries = isArray
-    ? (data as unknown[]).map((v, i) => [String(i), v] as [string, unknown])
+    ? (data as unknown[]).map((v, i) => [i, v] as [number, unknown])
     : Object.entries(data as Record<string, unknown>);
-
   const count = entries.length;
+  const openBracket = isArray ? '[' : '{';
+  const closeBracket = isArray ? ']' : '}';
 
   return (
     <div>
+      {/* Header row */}
       <div
-        className="flex items-baseline gap-1 cursor-pointer select-none hover:bg-white/5 rounded group"
-        onClick={() => setExpanded(!expanded)}
+        className="flex items-baseline gap-1 cursor-pointer select-none hover:bg-white/5 rounded px-1 py-px group"
+        style={{ paddingLeft: `${indentPx}px` }}
+        onClick={() => setExpanded(e => !e)}
       >
-        <span className="text-gray-500 w-3 text-xs shrink-0">{expanded ? '▾' : '▸'}</span>
-        {keyName !== undefined && (
-          <span className="text-purple-300 font-mono text-xs">"{keyName}":</span>
-        )}
-        <span className="text-gray-400 font-mono text-xs">
-          {isArray ? '[' : '{'}
+        <span className="text-gray-500 font-mono text-xs w-3 shrink-0 text-center">
+          {expanded ? '▾' : '▸'}
         </span>
+        {keyName !== undefined && (
+          <span className="text-purple-300 font-mono text-xs shrink-0">"{keyName}":</span>
+        )}
+        <span className="text-gray-300 font-mono text-xs">{openBracket}</span>
         {!expanded && (
           <span className="text-gray-500 font-mono text-xs">
             {count} {count === 1 ? (isArray ? 'item' : 'key') : (isArray ? 'items' : 'keys')}
-            {isArray ? ']' : '}'}
+            <span className="text-gray-300 ml-0.5">{closeBracket}</span>
+            {!isLast && <span className="text-gray-600">,</span>}
           </span>
         )}
         <button
           onClick={copyValue}
-          className="opacity-0 group-hover:opacity-100 text-gray-600 hover:text-gray-400 text-[10px] ml-1"
+          className="opacity-0 group-hover:opacity-100 text-gray-600 hover:text-gray-400 text-[10px] ml-auto shrink-0"
         >
           copy
         </button>
       </div>
 
+      {/* Children */}
       {expanded && (
-        <div className="ml-4 border-l border-gray-800 pl-2">
-          {entries.map(([k, v]) => (
+        <>
+          {entries.map(([k, v], i) => (
             <JsonNode
-              key={k}
+              key={String(k)}
               data={v}
-              keyName={isArray ? undefined : k}
+              keyName={isArray ? undefined : String(k)}
               depth={depth + 1}
-              defaultExpanded={depth < 1}
+              isLast={i === entries.length - 1}
             />
           ))}
-        </div>
-      )}
-
-      {expanded && (
-        <span className="text-gray-400 font-mono text-xs ml-1 pl-1">
-          {isArray ? ']' : '}'}
-        </span>
+          {/* Closing bracket */}
+          <div
+            className="font-mono text-xs text-gray-300 px-1 py-px"
+            style={{ paddingLeft: `${indentPx + 12}px` }}
+          >
+            {closeBracket}
+            {!isLast && <span className="text-gray-600">,</span>}
+          </div>
+        </>
       )}
     </div>
   );
@@ -107,7 +127,6 @@ interface Props {
 }
 
 export function JsonTreeView({ json }: Props) {
-  const [expandAll, setExpandAll] = useState(false);
   const [parsed, error] = React.useMemo(() => {
     try {
       return [JSON.parse(json), null];
@@ -128,20 +147,14 @@ export function JsonTreeView({ json }: Props) {
     <div className="h-full flex flex-col">
       <div className="flex items-center gap-2 px-2 py-1 border-b border-gray-800 shrink-0">
         <button
-          onClick={() => setExpandAll(!expandAll)}
-          className="text-xs text-gray-500 hover:text-gray-300"
-        >
-          {expandAll ? 'Collapse All' : 'Expand All'}
-        </button>
-        <button
           onClick={() => navigator.clipboard.writeText(json)}
           className="text-xs text-gray-500 hover:text-gray-300"
         >
           Copy All
         </button>
       </div>
-      <div className="flex-1 overflow-auto p-2 font-mono">
-        <JsonNode data={parsed} defaultExpanded={true} />
+      <div className="flex-1 overflow-auto p-2">
+        <JsonNode data={parsed} depth={0} isLast={true} />
       </div>
     </div>
   );
