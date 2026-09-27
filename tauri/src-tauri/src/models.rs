@@ -85,11 +85,11 @@ impl KeyValue {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum Auth {
-    #[serde(rename = "None")]   None,
-    #[serde(rename = "Bearer")] Bearer { token: String },
-    #[serde(rename = "Basic")]  Basic { username: String, password: String },
-    #[serde(rename = "ApiKey")] ApiKey { key: String, value: String, location: String },
-    #[serde(rename = "OAuth2")]
+    #[serde(rename = "None",   alias = "none")]   None,
+    #[serde(rename = "Bearer", alias = "bearer")] Bearer { token: String },
+    #[serde(rename = "Basic",  alias = "basic")]  Basic { username: String, password: String },
+    #[serde(rename = "ApiKey", alias = "apiKey")] ApiKey { key: String, value: String, location: String },
+    #[serde(rename = "OAuth2", alias = "oAuth2")]
     OAuth2 {
         grant_type: String,
         auth_url: String,
@@ -99,7 +99,7 @@ pub enum Auth {
         scope: String,
         access_token: Option<String>,
     },
-    #[serde(rename = "Digest")] Digest { username: String, password: String },
+    #[serde(rename = "Digest", alias = "digest")] Digest { username: String, password: String },
 }
 
 impl Default for Auth {
@@ -113,13 +113,13 @@ impl Default for Auth {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum RequestBody {
-    #[serde(rename = "None")]       None,
-    #[serde(rename = "Raw")]        Raw { content: String, content_type: String },
-    #[serde(rename = "Json")]       Json { content: String },
-    #[serde(rename = "FormData")]   FormData { fields: Vec<KeyValue> },
-    #[serde(rename = "UrlEncoded")] UrlEncoded { fields: Vec<KeyValue> },
-    #[serde(rename = "Binary")]     Binary { file_path: String },
-    #[serde(rename = "GraphQL")]    GraphQL { query: String, variables: String },
+    #[serde(rename = "None",       alias = "none")]       None,
+    #[serde(rename = "Raw",        alias = "raw")]        Raw { content: String, content_type: String },
+    #[serde(rename = "Json",       alias = "json")]       Json { content: String },
+    #[serde(rename = "FormData",   alias = "formData")]   FormData { fields: Vec<KeyValue> },
+    #[serde(rename = "UrlEncoded", alias = "urlEncoded")] UrlEncoded { fields: Vec<KeyValue> },
+    #[serde(rename = "Binary",     alias = "binary")]     Binary { file_path: String },
+    #[serde(rename = "GraphQL",    alias = "graphQL")]    GraphQL { query: String, variables: String },
 }
 
 impl Default for RequestBody {
