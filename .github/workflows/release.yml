@@ -1,0 +1,101 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "release-v*.*.*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            target: universal-apple-darwin
+            args: --target universal-apple-darwin
+          - platform: windows-latest
+            target: x86_64-pc-windows-msvc
+            args: ""
+
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: tauri/package-lock.json
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || matrix.target }}
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: tauri/src-tauri
+
+      - name: Install frontend dependencies
+        working-directory: tauri
+        run: npm ci
+
+      - name: Build Tauri app
+        uses: tauri-apps/tauri-action@v0
+        with:
+          projectPath: tauri
+          args: ${{ matrix.args }}
+
+      - name: Collect macOS artifacts
+        if: matrix.platform == 'macos-latest'
+        shell: bash
+        run: |
+          mkdir -p dist
+          cp tauri/src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg dist/ 2>/dev/null || true
+          cp -r tauri/src-tauri/target/universal-apple-darwin/release/bundle/macos/*.app dist/ 2>/dev/null || true
+
+      - name: Collect Windows artifacts
+        if: matrix.platform == 'windows-latest'
+        shell: bash
+        run: |
+          mkdir -p dist
+          cp tauri/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/*.msi dist/ 2>/dev/null || true
+          cp tauri/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe dist/ 2>/dev/null || true
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-${{ matrix.platform }}
+          path: dist/*
+          if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Flatten artifacts
+        run: |
+          mkdir -p release
+          find artifacts -type f \( -iname "*.dmg" -o -iname "*.msi" -o -iname "*.exe" \) -exec cp {} release/ \;
+          ls -la release
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+          files: release/*
+          generate_release_notes: true
