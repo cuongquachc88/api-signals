@@ -215,7 +215,7 @@ function RequestItem({ request, depth = 0, searchQuery = '' }: { request: APIReq
       onClick={() => openTab(request)}
       onDoubleClick={() => openTab(request)}
     >
-      <span className={clsx('text-[10px] font-bold shrink-0 w-10 text-right', METHOD_COLORS[request.method] ?? 'text-gray-400')}>
+      <span className={clsx('text-[10px] font-bold shrink-0 w-10 text-left', METHOD_COLORS[request.method] ?? 'text-gray-400')}>
         {request.method}
       </span>
       <span className="flex-1 text-xs text-gray-400 truncate">
@@ -279,7 +279,7 @@ function HistoryItem({ entry, searchQuery = '' }: { entry: HistoryEntry; searchQ
       onClick={handleOpen}
     >
       <div className="flex items-center gap-1.5">
-        <span className={clsx('text-[10px] font-bold shrink-0 w-10 text-right', METHOD_COLORS[entry.method] ?? 'text-gray-400')}>
+        <span className={clsx('text-[10px] font-bold shrink-0 w-10 text-left', METHOD_COLORS[entry.method] ?? 'text-gray-400')}>
           {entry.method}
         </span>
         <span className={clsx('text-[10px] font-mono shrink-0', statusColor)}>

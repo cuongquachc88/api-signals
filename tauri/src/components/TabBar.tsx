@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useAppStore } from '../store/appStore';
 import { clsx } from 'clsx';
 import { METHOD_COLORS } from './RequestEditor';
+import { uuid } from '../utils/uuid';
 
 function TabLabel({ tabId, name, isSelected }: { tabId: string; name: string; isSelected: boolean }) {
   const { updateTabRequest, saveRequest } = useAppStore();
@@ -63,13 +64,37 @@ function TabLabel({ tabId, name, isSelected }: { tabId: string; name: string; is
   );
 }
 
-export function TabBar() {
-  const { tabs, selectedTabId, selectTab, closeTab } = useAppStore();
+function newBlankRequest() {
+  const now = new Date().toISOString();
+  const id = uuid();
+  return {
+    id,
+    collectionId: '',
+    workspaceId: '',
+    name: 'New Request',
+    method: 'GET' as const,
+    url: '',
+    headers: [],
+    params: [],
+    body: { type: 'None' as const },
+    auth: { type: 'None' as const },
+    preRequestScript: '',
+    postResponseScript: '',
+    description: '',
+    sortOrder: 0,
+    createdAt: now,
+    updatedAt: now,
+  };
+}
 
-  if (tabs.length === 0) return null;
+export function TabBar() {
+  const { tabs, selectedTabId, selectTab, closeTab, openTab } = useAppStore();
+
+  const handleNewTab = () => openTab(newBlankRequest());
 
   return (
-    <div className="flex items-center overflow-x-auto border-b border-gray-700 bg-gray-900 h-9 shrink-0">
+    <div className="flex items-center border-b border-gray-700 bg-gray-900 h-9 shrink-0">
+      <div className="flex items-stretch overflow-x-auto flex-1 min-w-0 h-full">
       {tabs.map((tab) => (
         <div
           key={tab.id}
@@ -102,6 +127,16 @@ export function TabBar() {
           </button>
         </div>
       ))}
+      </div>
+      <button
+        onClick={handleNewTab}
+        className="shrink-0 w-9 h-full flex items-center justify-center text-gray-500 hover:text-gray-200 hover:bg-gray-800 border-l border-gray-700 transition-colors"
+        title="New Tab"
+      >
+        <svg className="w-3.5 h-3.5" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5">
+          <path d="M7 1v12M1 7h12" strokeLinecap="round"/>
+        </svg>
+      </button>
     </div>
   );
 }
