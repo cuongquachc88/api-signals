@@ -138,10 +138,7 @@ export function EnvironmentBar() {
   const activeVarCount = activeEnv ? activeEnv.variables.filter(v => v.enabled && v.key).length : 0;
 
   const handleNewEnv = async () => {
-    const name = prompt('Environment name:');
-    if (name?.trim()) {
-      await createEnvironment(name.trim());
-    }
+    await createEnvironment('New Environment');
   };
 
   return (

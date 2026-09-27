@@ -137,14 +137,19 @@ export const useAppStore = create<AppState>()(
       const workspaces = await api.getWorkspaces();
       set({ workspaces });
       if (workspaces.length > 0) {
-        const currentId = get().selectedWorkspaceId;
-        if (!currentId || !workspaces.find(w => w.id === currentId)) {
-          await get().selectWorkspace(workspaces[0].id);
+        let currentId = get().selectedWorkspaceId;
+        if (!currentId) {
+          try { currentId = localStorage.getItem('lastWorkspaceId'); } catch { /* ignore */ }
         }
+        if (!currentId || !workspaces.find(w => w.id === currentId)) {
+          currentId = workspaces[0].id;
+        }
+        await get().selectWorkspace(currentId);
       }
     },
 
     selectWorkspace: async (id: string) => {
+      try { localStorage.setItem('lastWorkspaceId', id); } catch { /* ignore */ }
       set({ selectedWorkspaceId: id, collections: [], requestsByCollection: {}, environments: [], history: [] });
       await Promise.all([
         get().loadCollections(id),
@@ -241,7 +246,10 @@ export const useAppStore = create<AppState>()(
     },
 
     saveRequest: async (request: APIRequest) => {
-      const saved = await api.updateRequest(request);
+      const saved = await api.updateRequest(request).catch((e: unknown) => {
+        console.error('[saveRequest] update_request failed:', e, JSON.stringify(request.body));
+        throw e;
+      });
       set(s => {
         const cid = request.collectionId;
         // Remove from any old collection bucket if the collectionId changed

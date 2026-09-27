@@ -22,17 +22,37 @@ import type { APIRequest } from './types';
 type ToolPanel = 'none' | 'runner' | 'mock' | 'websocket' | 'sse' | 'diff';
 
 function WorkspaceSwitcher() {
-  const { workspaces, selectedWorkspaceId, selectWorkspace, createWorkspace, deleteWorkspace } = useAppStore();
+  const { workspaces, selectedWorkspaceId, selectWorkspace, createWorkspace, updateWorkspace, deleteWorkspace } = useAppStore();
   const [showDropdown, setShowDropdown] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
 
   const selected = workspaces.find(w => w.id === selectedWorkspaceId);
 
-  const handleNew = async () => {
-    const name = prompt('Workspace name:');
-    if (name?.trim()) {
-      await createWorkspace(name.trim());
+  const handleCreateSubmit = async () => {
+    const trimmed = newName.trim();
+    if (trimmed) {
+      await createWorkspace(trimmed);
     }
+    setCreating(false);
+    setNewName('');
     setShowDropdown(false);
+  };
+
+  const startEdit = (e: React.MouseEvent, ws: { id: string; name: string }) => {
+    e.stopPropagation();
+    setEditingId(ws.id);
+    setEditName(ws.name);
+  };
+
+  const handleEditSubmit = async () => {
+    const trimmed = editName.trim();
+    if (editingId && trimmed) {
+      await updateWorkspace(editingId, trimmed);
+    }
+    setEditingId(null);
   };
 
   return (
@@ -59,37 +79,84 @@ function WorkspaceSwitcher() {
           <div className="absolute left-0 top-full mt-1 bg-gray-900 border border-gray-700 rounded-lg shadow-2xl w-52 z-50 py-1">
             {workspaces.map(ws => (
               <div key={ws.id} className="flex items-center group">
-                <button
-                  className={clsx(
-                    'flex-1 text-left px-3 py-1.5 text-sm hover:bg-gray-800',
-                    ws.id === selectedWorkspaceId ? 'text-blue-400' : 'text-gray-300'
-                  )}
-                  onClick={() => { selectWorkspace(ws.id); setShowDropdown(false); }}
-                >
-                  {ws.name}
-                </button>
-                {workspaces.length > 1 && (
+                {editingId === ws.id ? (
+                  <input
+                    autoFocus
+                    className="flex-1 mx-2 my-1 bg-gray-800 text-sm text-white rounded px-2 py-1 outline-none border border-blue-500"
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    onClick={(e) => e.stopPropagation()}
+                    onBlur={handleEditSubmit}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') { e.preventDefault(); handleEditSubmit(); }
+                      if (e.key === 'Escape') setEditingId(null);
+                    }}
+                  />
+                ) : (
                   <button
-                    onClick={() => { if (confirm(`Delete workspace "${ws.name}"?`)) deleteWorkspace(ws.id); }}
-                    className="opacity-0 group-hover:opacity-100 p-1 text-gray-600 hover:text-red-400"
+                    className={clsx(
+                      'flex-1 text-left px-3 py-1.5 text-sm hover:bg-gray-800',
+                      ws.id === selectedWorkspaceId ? 'text-blue-400' : 'text-gray-300'
+                    )}
+                    onClick={() => { selectWorkspace(ws.id); setShowDropdown(false); }}
+                    onDoubleClick={(e) => startEdit(e, ws)}
                   >
-                    <svg className="w-3 h-3" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.2">
-                      <path d="M2 2l6 6M8 2L2 8" strokeLinecap="round" />
-                    </svg>
+                    {ws.name}
                   </button>
+                )}
+                {editingId !== ws.id && (
+                  <div className="opacity-0 group-hover:opacity-100 flex items-center shrink-0">
+                    <button
+                      onClick={(e) => startEdit(e, ws)}
+                      title="Rename"
+                      className="p-1 text-gray-600 hover:text-gray-300"
+                    >
+                      <svg className="w-3 h-3" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.2">
+                        <path d="M6.5 1.5l2 2-5 5-2.3.3.3-2.3z" strokeLinejoin="round" />
+                      </svg>
+                    </button>
+                    {workspaces.length > 1 && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); if (window.confirm(`Delete workspace "${ws.name}"?`)) deleteWorkspace(ws.id); }}
+                        className="p-1 text-gray-600 hover:text-red-400"
+                        title="Delete"
+                      >
+                        <svg className="w-3 h-3" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.2">
+                          <path d="M2 2l6 6M8 2L2 8" strokeLinecap="round" />
+                        </svg>
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
             ))}
             <div className="border-t border-gray-700 mt-1 pt-1">
-              <button
-                onClick={handleNew}
-                className="w-full text-left px-3 py-1.5 text-sm text-blue-400 hover:bg-gray-800 flex items-center gap-2"
-              >
-                <svg className="w-3 h-3" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5">
-                  <path d="M6 1v10M1 6h10" strokeLinecap="round" />
-                </svg>
-                New Workspace
-              </button>
+              {creating ? (
+                <div className="flex items-center gap-1 px-2 py-1">
+                  <input
+                    autoFocus
+                    className="flex-1 bg-gray-800 text-sm text-white rounded px-2 py-1 outline-none border border-blue-500"
+                    placeholder="Workspace name"
+                    value={newName}
+                    onChange={(e) => setNewName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') { e.preventDefault(); handleCreateSubmit(); }
+                      if (e.key === 'Escape') { setCreating(false); setNewName(''); }
+                    }}
+                    onBlur={() => { if (!newName.trim()) setCreating(false); }}
+                  />
+                </div>
+              ) : (
+                <button
+                  onClick={() => setCreating(true)}
+                  className="w-full text-left px-3 py-1.5 text-sm text-blue-400 hover:bg-gray-800 flex items-center gap-2"
+                >
+                  <svg className="w-3 h-3" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5">
+                    <path d="M6 1v10M1 6h10" strokeLinecap="round" />
+                  </svg>
+                  New Workspace
+                </button>
+              )}
             </div>
           </div>
         </>
