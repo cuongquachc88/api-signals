@@ -1,7 +1,33 @@
+use crate::db::DbState;
 use crate::models::{APIRequest, Collection, KeyValue, RequestBody, Auth};
+use rusqlite::{params, Connection};
 use serde_json::Value;
 use uuid::Uuid;
 use chrono::Utc;
+use base64::Engine;
+use tauri::State;
+
+fn insert_request(conn: &Connection, req: &APIRequest) -> Result<(), String> {
+    let headers_json = serde_json::to_string(&req.headers).map_err(|e| e.to_string())?;
+    let params_json = serde_json::to_string(&req.params).map_err(|e| e.to_string())?;
+    let body_json = serde_json::to_string(&req.body).map_err(|e| e.to_string())?;
+    let auth_json = serde_json::to_string(&req.auth).map_err(|e| e.to_string())?;
+
+    conn.execute(
+        "INSERT INTO requests (id, collection_id, workspace_id, name, method, url, headers, params, body, auth,
+                               pre_request_script, post_response_script, description, sort_order, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)",
+        params![
+            req.id, req.collection_id, req.workspace_id, req.name, req.method, req.url,
+            headers_json, params_json, body_json, auth_json,
+            req.pre_request_script, req.post_response_script, req.description,
+            req.sort_order, req.created_at, req.updated_at
+        ],
+    )
+    .map_err(|e| e.to_string())?;
+
+    Ok(())
+}
 
 // ─── cURL import/export ────────────────────────────────────────────────────────
 
@@ -9,10 +35,13 @@ use chrono::Utc;
 pub fn import_curl(curl_string: String) -> Result<APIRequest, String> {
     let tokens = tokenize_curl(&curl_string);
     let mut method = "GET".to_string();
+    let mut method_explicit = false;
     let mut url = String::new();
     let mut headers: Vec<KeyValue> = Vec::new();
     let mut body_content = String::new();
     let mut content_type = String::new();
+    let mut basic_user: Option<String> = None;
+    let mut auth: Auth = Auth::None;
 
     let mut i = 0;
     while i < tokens.len() {
@@ -20,7 +49,7 @@ pub fn import_curl(curl_string: String) -> Result<APIRequest, String> {
             "curl" => { i += 1; }
             "-X" | "--request" => {
                 i += 1;
-                if i < tokens.len() { method = tokens[i].clone(); }
+                if i < tokens.len() { method = tokens[i].clone(); method_explicit = true; }
                 i += 1;
             }
             "-H" | "--header" => {
@@ -31,17 +60,25 @@ pub fn import_curl(curl_string: String) -> Result<APIRequest, String> {
                         let value = tokens[i][colon + 1..].trim().to_string();
                         if key.to_lowercase() == "content-type" {
                             content_type = value.clone();
+                        } else if key.to_lowercase() == "authorization" {
+                            auth = parse_authorization_header(&value);
+                        } else {
+                            headers.push(KeyValue::new(&key, &value));
                         }
-                        headers.push(KeyValue::new(&key, &value));
                     }
                 }
                 i += 1;
             }
-            "-d" | "--data" | "--data-raw" => {
+            "-u" | "--user" => {
+                i += 1;
+                if i < tokens.len() { basic_user = Some(tokens[i].clone()); }
+                i += 1;
+            }
+            "-d" | "--data" | "--data-raw" | "--data-binary" => {
                 i += 1;
                 if i < tokens.len() {
                     body_content = tokens[i].clone();
-                    if method == "GET" { method = "POST".to_string(); }
+                    if !method_explicit { method = "POST".to_string(); }
                 }
                 i += 1;
             }
@@ -57,8 +94,29 @@ pub fn import_curl(curl_string: String) -> Result<APIRequest, String> {
         }
     }
 
-    // Remove content-type from headers (will be handled by body type)
-    headers.retain(|h| h.key.to_lowercase() != "content-type");
+    if matches!(auth, Auth::None) {
+        if let Some(user) = basic_user {
+            let (username, password) = match user.split_once(':') {
+                Some((u, p)) => (u.to_string(), p.to_string()),
+                None => (user, String::new()),
+            };
+            auth = Auth::Basic { username, password };
+        }
+    }
+
+    // Split query string out of the URL into params
+    let mut params: Vec<KeyValue> = Vec::new();
+    if let Some(q_idx) = url.find('?') {
+        let query = url[q_idx + 1..].to_string();
+        for pair in query.split('&') {
+            if pair.is_empty() { continue; }
+            let (key, value) = match pair.split_once('=') {
+                Some((k, v)) => (k.to_string(), v.to_string()),
+                None => (pair.to_string(), String::new()),
+            };
+            params.push(KeyValue::new(&key, &value));
+        }
+    }
 
     let body = if body_content.is_empty() {
         RequestBody::None
@@ -81,9 +139,9 @@ pub fn import_curl(curl_string: String) -> Result<APIRequest, String> {
         method,
         url,
         headers,
-        params: Vec::new(),
+        params,
         body,
-        auth: Auth::None,
+        auth,
         pre_request_script: String::new(),
         post_response_script: String::new(),
         description: String::new(),
@@ -91,6 +149,24 @@ pub fn import_curl(curl_string: String) -> Result<APIRequest, String> {
         created_at: now.clone(),
         updated_at: now,
     })
+}
+
+fn parse_authorization_header(value: &str) -> Auth {
+    if let Some(token) = value.strip_prefix("Bearer ").or_else(|| value.strip_prefix("bearer ")) {
+        return Auth::Bearer { token: token.trim().to_string() };
+    }
+    if let Some(encoded) = value.strip_prefix("Basic ").or_else(|| value.strip_prefix("basic ")) {
+        if let Ok(decoded) = base64::engine::general_purpose::STANDARD.decode(encoded.trim()) {
+            if let Ok(text) = String::from_utf8(decoded) {
+                let (username, password) = match text.split_once(':') {
+                    Some((u, p)) => (u.to_string(), p.to_string()),
+                    None => (text, String::new()),
+                };
+                return Auth::Basic { username, password };
+            }
+        }
+    }
+    Auth::None
 }
 
 fn tokenize_curl(s: &str) -> Vec<String> {
@@ -111,16 +187,20 @@ fn tokenize_curl(s: &str) -> Vec<String> {
                 in_double = !in_double;
                 i += 1;
             }
+            '\\' if !in_single && !in_double && i + 1 < chars.len() && (chars[i + 1] == '\n' || chars[i + 1] == '\r') => {
+                // Line continuation: treat like a token separator, don't embed the newline
+                if !current.is_empty() {
+                    tokens.push(current.clone());
+                    current.clear();
+                }
+                i += 2;
+                if i < chars.len() && chars[i - 1] == '\r' && chars[i] == '\n' { i += 1; }
+            }
             '\\' if i + 1 < chars.len() => {
                 current.push(chars[i + 1]);
                 i += 2;
             }
-            c if (c == ' ' || c == '\n' || c == '\t' || c == '\\') && !in_single && !in_double => {
-                // Skip line continuation backslash at end
-                if c == '\\' && i + 1 < chars.len() && (chars[i+1] == '\n' || chars[i+1] == '\r') {
-                    i += 2;
-                    continue;
-                }
+            c if (c == ' ' || c == '\n' || c == '\t') && !in_single && !in_double => {
                 if !current.is_empty() {
                     tokens.push(current.clone());
                     current.clear();
@@ -149,27 +229,40 @@ pub fn export_curl(request: APIRequest) -> Result<String, String> {
 // ─── Postman Collection v2.1 import ───────────────────────────────────────────
 
 #[derive(serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct PostmanImportResult {
     pub collection_name: String,
     pub requests: Vec<APIRequest>,
 }
 
-#[tauri::command]
-pub fn import_postman(
-    json_string: String,
-    workspace_id: String,
-    collection_id: String,
-) -> Result<PostmanImportResult, String> {
-    let v: Value = serde_json::from_str(&json_string).map_err(|e| e.to_string())?;
+fn parse_postman_collection(json_string: &str, workspace_id: &str, collection_id: &str) -> Result<PostmanImportResult, String> {
+    let v: Value = serde_json::from_str(json_string).map_err(|e| e.to_string())?;
 
     let collection_name = v["info"]["name"].as_str().unwrap_or("Imported Collection").to_string();
     let mut requests: Vec<APIRequest> = Vec::new();
 
     if let Some(items) = v["item"].as_array() {
-        parse_postman_items(items, &workspace_id, &collection_id, &mut requests, 0);
+        parse_postman_items(items, workspace_id, collection_id, &mut requests, 0);
     }
 
     Ok(PostmanImportResult { collection_name, requests })
+}
+
+#[tauri::command]
+pub fn import_postman(
+    state: State<DbState>,
+    json_string: String,
+    workspace_id: String,
+    collection_id: String,
+) -> Result<PostmanImportResult, String> {
+    let result = parse_postman_collection(&json_string, &workspace_id, &collection_id)?;
+
+    let conn = state.0.lock().map_err(|e| e.to_string())?;
+    for req in &result.requests {
+        insert_request(&conn, req)?;
+    }
+
+    Ok(result)
 }
 
 fn parse_postman_items(items: &[Value], workspace_id: &str, collection_id: &str, requests: &mut Vec<APIRequest>, depth: usize) {
@@ -384,13 +477,8 @@ fn export_postman_body(body: &RequestBody) -> Value {
 
 // ─── HAR import/export ─────────────────────────────────────────────────────────
 
-#[tauri::command]
-pub fn import_har(
-    json_string: String,
-    workspace_id: String,
-    collection_id: String,
-) -> Result<Vec<APIRequest>, String> {
-    let v: Value = serde_json::from_str(&json_string).map_err(|e| e.to_string())?;
+fn parse_har(json_string: &str, workspace_id: &str, collection_id: &str) -> Result<Vec<APIRequest>, String> {
+    let v: Value = serde_json::from_str(json_string).map_err(|e| e.to_string())?;
     let mut requests = Vec::new();
 
     if let Some(entries) = v["log"]["entries"].as_array() {
@@ -425,8 +513,8 @@ pub fn import_har(
             let name = url.split('/').last().unwrap_or("Request").to_string();
             requests.push(APIRequest {
                 id: Uuid::new_v4().to_string(),
-                collection_id: collection_id.clone(),
-                workspace_id: workspace_id.clone(),
+                collection_id: collection_id.to_string(),
+                workspace_id: workspace_id.to_string(),
                 name: format!("{} {}", method, name),
                 method, url, headers,
                 params: Vec::new(),
@@ -445,15 +533,27 @@ pub fn import_har(
     Ok(requests)
 }
 
-// ─── OpenAPI 3.x import ────────────────────────────────────────────────────────
-
 #[tauri::command]
-pub fn import_openapi(
+pub fn import_har(
+    state: State<DbState>,
     json_string: String,
     workspace_id: String,
     collection_id: String,
 ) -> Result<Vec<APIRequest>, String> {
-    let v: Value = serde_json::from_str(&json_string).map_err(|e| {
+    let requests = parse_har(&json_string, &workspace_id, &collection_id)?;
+
+    let conn = state.0.lock().map_err(|e| e.to_string())?;
+    for req in &requests {
+        insert_request(&conn, req)?;
+    }
+
+    Ok(requests)
+}
+
+// ─── OpenAPI 3.x import ────────────────────────────────────────────────────────
+
+fn parse_openapi(json_string: &str, workspace_id: &str, collection_id: &str) -> Result<Vec<APIRequest>, String> {
+    let v: Value = serde_json::from_str(json_string).map_err(|e| {
         // Try YAML? For now return the error
         format!("Parse error: {}. Note: Only JSON OpenAPI specs are supported.", e)
     })?;
@@ -534,8 +634,8 @@ pub fn import_openapi(
                     let now = Utc::now().to_rfc3339();
                     requests.push(APIRequest {
                         id: Uuid::new_v4().to_string(),
-                        collection_id: collection_id.clone(),
-                        workspace_id: workspace_id.clone(),
+                        collection_id: collection_id.to_string(),
+                        workspace_id: workspace_id.to_string(),
                         name, method, url, headers, params, body,
                         auth: Auth::None,
                         pre_request_script: String::new(),
@@ -551,4 +651,255 @@ pub fn import_openapi(
     }
 
     Ok(requests)
+}
+
+#[tauri::command]
+pub fn import_openapi(
+    state: State<DbState>,
+    json_string: String,
+    workspace_id: String,
+    collection_id: String,
+) -> Result<Vec<APIRequest>, String> {
+    let requests = parse_openapi(&json_string, &workspace_id, &collection_id)?;
+
+    let conn = state.0.lock().map_err(|e| e.to_string())?;
+    for req in &requests {
+        insert_request(&conn, req)?;
+    }
+
+    Ok(requests)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ─── cURL tokenizer / import ───────────────────────────────────────────
+
+    #[test]
+    fn tokenize_splits_line_continuations_without_glueing_next_flag() {
+        // Regression: a `\` + newline before a flag with no leading space (as emitted by
+        // Postman's "Copy as cURL (bash)") used to get glued onto the next token,
+        // producing "\n--header" instead of "--header", silently dropping every
+        // header/body flag that followed a line continuation.
+        let curl = "curl --location 'https://example.com' \\\n--header 'X-Test: 1' \\\n--data-raw '{}'";
+        let tokens = tokenize_curl(curl);
+        assert_eq!(tokens, vec![
+            "curl", "--location", "https://example.com",
+            "--header", "X-Test: 1",
+            "--data-raw", "{}",
+        ]);
+    }
+
+    #[test]
+    fn tokenize_handles_crlf_line_continuations() {
+        let curl = "curl --location 'https://example.com' \\\r\n--header 'X-Test: 1'";
+        let tokens = tokenize_curl(curl);
+        assert_eq!(tokens, vec!["curl", "--location", "https://example.com", "--header", "X-Test: 1"]);
+    }
+
+    #[test]
+    fn import_curl_parses_method_headers_and_json_body() {
+        let curl = "curl --location 'https://api.example.com/run' \\\n--header 'Content-Type: application/json' \\\n--header 'TENANT-ID: abc123' \\\n--data-raw '{\"key\":\"value\"}'";
+        let req = import_curl(curl.to_string()).unwrap();
+
+        assert_eq!(req.method, "POST");
+        assert_eq!(req.url, "https://api.example.com/run");
+        assert_eq!(req.headers.len(), 1);
+        assert_eq!(req.headers[0].key, "TENANT-ID");
+        assert_eq!(req.headers[0].value, "abc123");
+        match req.body {
+            RequestBody::Json { content } => assert_eq!(content, "{\"key\":\"value\"}"),
+            other => panic!("expected Json body, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn import_curl_respects_explicit_method_even_with_data() {
+        let curl = "curl -X PUT 'https://api.example.com/thing' -d '{}'";
+        let req = import_curl(curl.to_string()).unwrap();
+        assert_eq!(req.method, "PUT");
+    }
+
+    #[test]
+    fn import_curl_defaults_to_post_when_data_present_without_explicit_method() {
+        let curl = "curl 'https://api.example.com/thing' -d '{}'";
+        let req = import_curl(curl.to_string()).unwrap();
+        assert_eq!(req.method, "POST");
+    }
+
+    #[test]
+    fn import_curl_extracts_bearer_auth_from_header() {
+        let curl = "curl 'https://api.example.com' -H 'Authorization: Bearer abc.def.ghi'";
+        let req = import_curl(curl.to_string()).unwrap();
+        match req.auth {
+            Auth::Bearer { token } => assert_eq!(token, "abc.def.ghi"),
+            other => panic!("expected Bearer auth, got {:?}", other),
+        }
+        // Authorization must not leak into the plain headers list
+        assert!(req.headers.iter().all(|h| h.key.to_lowercase() != "authorization"));
+    }
+
+    #[test]
+    fn import_curl_extracts_basic_auth_from_user_flag() {
+        let curl = "curl -u 'alice:s3cret' 'https://api.example.com'";
+        let req = import_curl(curl.to_string()).unwrap();
+        match req.auth {
+            Auth::Basic { username, password } => {
+                assert_eq!(username, "alice");
+                assert_eq!(password, "s3cret");
+            }
+            other => panic!("expected Basic auth, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn import_curl_extracts_basic_auth_from_authorization_header() {
+        // "alice:s3cret" base64-encoded
+        let curl = "curl 'https://api.example.com' -H 'Authorization: Basic YWxpY2U6czNjcmV0'";
+        let req = import_curl(curl.to_string()).unwrap();
+        match req.auth {
+            Auth::Basic { username, password } => {
+                assert_eq!(username, "alice");
+                assert_eq!(password, "s3cret");
+            }
+            other => panic!("expected Basic auth, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn import_curl_splits_query_string_into_params() {
+        let curl = "curl 'https://api.example.com/search?q=test&page=2'";
+        let req = import_curl(curl.to_string()).unwrap();
+        assert_eq!(req.url, "https://api.example.com/search?q=test&page=2");
+        assert_eq!(req.params.len(), 2);
+        assert_eq!(req.params[0].key, "q");
+        assert_eq!(req.params[0].value, "test");
+        assert_eq!(req.params[1].key, "page");
+        assert_eq!(req.params[1].value, "2");
+    }
+
+    // ─── Postman / HAR / OpenAPI parsing (pure, no DB) ─────────────────────
+
+    #[test]
+    fn parse_postman_collection_extracts_name_and_requests() {
+        let json = r#"{
+            "info": { "name": "My Collection" },
+            "item": [
+                {
+                    "name": "Get thing",
+                    "request": {
+                        "method": "GET",
+                        "url": { "raw": "https://api.example.com/thing" },
+                        "header": [{ "key": "X-Test", "value": "1" }]
+                    }
+                }
+            ]
+        }"#;
+        let result = parse_postman_collection(json, "ws1", "col1").unwrap();
+        assert_eq!(result.collection_name, "My Collection");
+        assert_eq!(result.requests.len(), 1);
+        assert_eq!(result.requests[0].method, "GET");
+        assert_eq!(result.requests[0].url, "https://api.example.com/thing");
+        assert_eq!(result.requests[0].workspace_id, "ws1");
+        assert_eq!(result.requests[0].collection_id, "col1");
+    }
+
+    #[test]
+    fn parse_postman_collection_recurses_into_nested_folders() {
+        let json = r#"{
+            "info": { "name": "Nested" },
+            "item": [
+                { "item": [
+                    { "name": "Inner", "request": { "method": "GET", "url": "https://a.com" } }
+                ]}
+            ]
+        }"#;
+        let result = parse_postman_collection(json, "ws1", "col1").unwrap();
+        assert_eq!(result.requests.len(), 1);
+    }
+
+    #[test]
+    fn parse_har_extracts_requests_and_skips_pseudo_headers() {
+        let json = r#"{
+            "log": { "entries": [
+                { "request": {
+                    "method": "POST",
+                    "url": "https://api.example.com/a",
+                    "headers": [
+                        { "name": ":authority", "value": "api.example.com" },
+                        { "name": "Content-Type", "value": "application/json" }
+                    ],
+                    "postData": { "mimeType": "application/json", "text": "{\"a\":1}" }
+                }}
+            ]}
+        }"#;
+        let result = parse_har(json, "ws1", "col1").unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].method, "POST");
+        assert_eq!(result[0].headers.len(), 1);
+        assert_eq!(result[0].headers[0].key, "Content-Type");
+        match &result[0].body {
+            RequestBody::Json { content } => assert_eq!(content, "{\"a\":1}"),
+            other => panic!("expected Json body, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn parse_openapi_generates_one_request_per_operation() {
+        let json = r#"{
+            "servers": [{ "url": "https://api.example.com" }],
+            "paths": {
+                "/things": {
+                    "get": { "summary": "List things" },
+                    "post": { "summary": "Create thing" }
+                }
+            }
+        }"#;
+        let result = parse_openapi(json, "ws1", "col1").unwrap();
+        assert_eq!(result.len(), 2);
+        assert!(result.iter().any(|r| r.method == "GET" && r.url == "https://api.example.com/things"));
+        assert!(result.iter().any(|r| r.method == "POST"));
+    }
+
+    // ─── DB persistence ─────────────────────────────────────────────────────
+
+    #[test]
+    fn insert_request_persists_all_fields_round_trip() {
+        let conn = crate::db::init_db(":memory:").unwrap();
+        conn.execute(
+            "INSERT INTO workspaces (id, name, created_at, updated_at) VALUES ('ws1', 'W', 'now', 'now')",
+            [],
+        ).unwrap();
+        conn.execute(
+            "INSERT INTO collections (id, workspace_id, parent_id, name, sort_order, created_at, updated_at) VALUES ('col1', 'ws1', NULL, 'C', 0, 'now', 'now')",
+            [],
+        ).unwrap();
+
+        let req = APIRequest {
+            id: "req1".to_string(),
+            collection_id: "col1".to_string(),
+            workspace_id: "ws1".to_string(),
+            name: "Test".to_string(),
+            method: "POST".to_string(),
+            url: "https://api.example.com".to_string(),
+            headers: vec![KeyValue::new("X-Test", "1")],
+            params: Vec::new(),
+            body: RequestBody::Json { content: "{}".to_string() },
+            auth: Auth::None,
+            pre_request_script: String::new(),
+            post_response_script: String::new(),
+            description: String::new(),
+            sort_order: 0,
+            created_at: "2024-01-01T00:00:00Z".to_string(),
+            updated_at: "2024-01-01T00:00:00Z".to_string(),
+        };
+
+        insert_request(&conn, &req).unwrap();
+
+        let count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM requests WHERE id = ?1", params![req.id], |r| r.get(0))
+            .unwrap();
+        assert_eq!(count, 1);
+    }
 }
