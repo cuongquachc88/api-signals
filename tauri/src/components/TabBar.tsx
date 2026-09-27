@@ -26,7 +26,9 @@ function TabLabel({ tabId, name, isSelected }: { tabId: string; name: string; is
     if (!trimmed || trimmed === name) return;
     updateTabRequest(tabId, { name: trimmed });
     const tab = useAppStore.getState().tabs.find(t => t.id === tabId);
-    if (tab && !tab.requestId.endsWith('-history')) {
+    // Unsaved drafts (no collection yet) aren't persisted until the user
+    // explicitly saves and picks a target collection.
+    if (tab && !tab.requestId.endsWith('-history') && tab.request.collectionId) {
       await saveRequest({ ...tab.request, name: trimmed }).catch(console.error);
     }
   };

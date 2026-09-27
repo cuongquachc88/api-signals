@@ -143,9 +143,11 @@ interface Props {
 }
 
 export function RequestEditor({ tabId, request }: Props) {
-  const { updateTabRequest, tabs } = useAppStore();
+  const { updateTabRequest, tabs, collections } = useAppStore();
   const { sendRequest } = useRequest();
   const [activeTab, setActiveTab] = useState<EditorTab>('Params');
+  const [pickingCollection, setPickingCollection] = useState(false);
+  const [pickCollectionId, setPickCollectionId] = useState('');
 
   const tab = tabs.find(t => t.id === tabId);
 
@@ -161,13 +163,29 @@ export function RequestEditor({ tabId, request }: Props) {
 
   const handleSave = useCallback(async () => {
     const current = useAppStore.getState().tabs.find(t => t.id === tabId);
-    if (current && !current.requestId.endsWith('-history')) {
-      await useAppStore.getState().saveRequest(current.request).catch((e: unknown) => {
-        console.error('[handleSave] failed:', e);
-        alert(`Save failed: ${e}`);
-      });
+    if (!current || current.requestId.endsWith('-history')) return;
+    if (!current.request.collectionId) {
+      // Draft tab (from the "+" button) has never been saved — ask which
+      // collection to save it into before we can INSERT it.
+      const rootCollections = useAppStore.getState().collections.filter(c => c.parentId === null);
+      setPickCollectionId(rootCollections[0]?.id ?? '');
+      setPickingCollection(true);
+      return;
     }
+    await useAppStore.getState().saveRequest(current.request).catch((e: unknown) => {
+      console.error('[handleSave] failed:', e);
+      alert(`Save failed: ${e}`);
+    });
   }, [tabId]);
+
+  const confirmSaveToCollection = async () => {
+    if (!pickCollectionId) return;
+    await useAppStore.getState().saveDraftToCollection(tabId, pickCollectionId).catch((e: unknown) => {
+      console.error('[saveDraftToCollection] failed:', e);
+      alert(`Save failed: ${e}`);
+    });
+    setPickingCollection(false);
+  };
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -363,6 +381,50 @@ export function RequestEditor({ tabId, request }: Props) {
           </div>
         )}
       </div>
+
+      {pickingCollection && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+          <div className="bg-gray-900 border border-gray-700 rounded-lg w-[360px] flex flex-col shadow-2xl">
+            <div className="px-4 py-3 border-b border-gray-700">
+              <h2 className="text-sm font-semibold text-white">Save request to…</h2>
+            </div>
+            <div className="p-4 flex flex-col gap-3">
+              {collections.filter(c => c.parentId === null).length === 0 ? (
+                <p className="text-xs text-gray-400">No collections yet — create one first.</p>
+              ) : (
+                <select
+                  autoFocus
+                  className="w-full bg-gray-800 text-gray-200 rounded px-2 py-1.5 text-sm border border-gray-700 outline-none"
+                  value={pickCollectionId}
+                  onChange={(e) => setPickCollectionId(e.target.value)}
+                >
+                  {collections.filter(c => c.parentId === null).map(col => (
+                    <option key={col.id} value={col.id}>{col.name}</option>
+                  ))}
+                </select>
+              )}
+            </div>
+            <div className="flex justify-end gap-2 px-4 py-3 border-t border-gray-700">
+              <button
+                onClick={() => setPickingCollection(false)}
+                className="px-3 py-1.5 text-sm text-gray-400 hover:text-white rounded border border-gray-700"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmSaveToCollection}
+                disabled={!pickCollectionId}
+                className={clsx(
+                  'px-4 py-1.5 text-sm rounded font-medium',
+                  pickCollectionId ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-blue-800 text-blue-200 cursor-not-allowed'
+                )}
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

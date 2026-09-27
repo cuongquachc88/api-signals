@@ -61,6 +61,7 @@ interface AppState {
   loadAllRequests: () => Promise<void>;
   createRequest: (collectionId: string, name?: string) => Promise<APIRequest | null>;
   saveRequest: (request: APIRequest) => Promise<void>;
+  saveDraftToCollection: (tabId: string, collectionId: string) => Promise<void>;
   deleteRequest: (id: string) => Promise<void>;
   duplicateRequest: (id: string) => Promise<void>;
 
@@ -273,6 +274,28 @@ export const useAppStore = create<AppState>()(
         const tabs = s.tabs.map(t => t.requestId === request.id ? { ...t, request: saved, isDirty: false } : t);
         return { requestsByCollection: newByCol, tabs };
       });
+    },
+
+    // Persists a draft tab (created via the "+" button, collectionId: '') for
+    // the first time: creates the DB row in the chosen collection, then
+    // writes the tab's edited fields onto it.
+    saveDraftToCollection: async (tabId: string, collectionId: string) => {
+      const wsId = get().selectedWorkspaceId;
+      if (!wsId) return;
+      const tab = get().tabs.find(t => t.id === tabId);
+      if (!tab) return;
+
+      const created = await api.createRequest(collectionId, wsId, tab.request.name || 'New Request');
+      const draft = { ...tab.request, id: created.id, collectionId, workspaceId: wsId };
+      const saved = await api.updateRequest(draft);
+
+      set(s => ({
+        requestsByCollection: {
+          ...s.requestsByCollection,
+          [collectionId]: [...(s.requestsByCollection[collectionId] ?? []), saved],
+        },
+        tabs: s.tabs.map(t => t.id === tabId ? { ...t, requestId: saved.id, request: saved, isDirty: false } : t),
+      }));
     },
 
     deleteRequest: async (id: string) => {
