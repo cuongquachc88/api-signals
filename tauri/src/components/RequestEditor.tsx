@@ -9,7 +9,7 @@ import { AuthEditor } from './AuthEditor';
 import { api } from '../api/tauri';
 import CodeMirror from '@uiw/react-codemirror';
 import { javascript } from '@codemirror/lang-javascript';
-import { oneDark } from '@codemirror/theme-one-dark';
+import { editorExtensions, editorTheme } from '../utils/editorTheme';
 import type { APIRequest } from '../types';
 
 export const METHOD_COLORS: Record<string, string> = {
@@ -66,7 +66,9 @@ function CurlPasteButton({ onImport }: { onImport: (req: Partial<APIRequest>) =>
     setError('');
     try {
       const req = await api.importCurl(text.trim());
-      onImport(req);
+      // Only import the editable fields — never overwrite id/collectionId/workspaceId
+      const { id: _id, collectionId: _col, workspaceId: _ws, createdAt: _ca, updatedAt: _ua, ...fields } = req;
+      onImport(fields);
       setOpen(false);
       setText('');
     } catch (e: any) {
@@ -141,7 +143,7 @@ interface Props {
 }
 
 export function RequestEditor({ tabId, request }: Props) {
-  const { updateTabRequest, saveRequest, tabs } = useAppStore();
+  const { updateTabRequest, tabs } = useAppStore();
   const { sendRequest } = useRequest();
   const [activeTab, setActiveTab] = useState<EditorTab>('Params');
 
@@ -158,10 +160,14 @@ export function RequestEditor({ tabId, request }: Props) {
   const isHistoryTab = tab?.requestId.endsWith('-history') ?? false;
 
   const handleSave = useCallback(async () => {
-    if (tab && !isHistoryTab) {
-      await saveRequest(tab.request);
+    const current = useAppStore.getState().tabs.find(t => t.id === tabId);
+    if (current && !current.requestId.endsWith('-history')) {
+      await useAppStore.getState().saveRequest(current.request).catch((e: unknown) => {
+        console.error('[handleSave] failed:', e);
+        alert(`Save failed: ${e}`);
+      });
     }
-  }, [tab, isHistoryTab, saveRequest]);
+  }, [tabId]);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -322,8 +328,8 @@ export function RequestEditor({ tabId, request }: Props) {
                 <CodeMirror
                   value={request.preRequestScript}
                   height="100%"
-                  theme={oneDark}
-                  extensions={[javascript()]}
+                  theme={editorTheme}
+                  extensions={[...editorExtensions, javascript()]}
                   onChange={(value) => update({ preRequestScript: value })}
                   className="h-full text-sm"
                 />
@@ -336,8 +342,8 @@ export function RequestEditor({ tabId, request }: Props) {
                 <CodeMirror
                   value={request.postResponseScript}
                   height="100%"
-                  theme={oneDark}
-                  extensions={[javascript()]}
+                  theme={editorTheme}
+                  extensions={[...editorExtensions, javascript()]}
                   onChange={(value) => update({ postResponseScript: value })}
                   className="h-full text-sm"
                 />

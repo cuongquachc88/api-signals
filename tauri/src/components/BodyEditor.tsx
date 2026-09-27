@@ -2,8 +2,8 @@ import React from 'react';
 import CodeMirror from '@uiw/react-codemirror';
 import { json } from '@codemirror/lang-json';
 import { javascript } from '@codemirror/lang-javascript';
-import { oneDark } from '@codemirror/theme-one-dark';
 import { clsx } from 'clsx';
+import { editorExtensions, editorTheme } from '../utils/editorTheme';
 import type { RequestBody, KeyValue } from '../types';
 import { ParamsHeadersEditor } from './ParamsHeadersEditor';
 import { uuid } from '../utils/uuid';
@@ -54,6 +54,26 @@ export function BodyEditor({ body, onChange }: Props) {
             {label}
           </button>
         ))}
+        {(body.type === 'Json' || body.type === 'GraphQL') && (
+          <button
+            className="ml-auto flex items-center gap-1 text-xs text-gray-400 hover:text-white bg-gray-800 hover:bg-gray-700 border border-gray-600 px-2 py-0.5 rounded transition-colors"
+            title="Prettify JSON"
+            onClick={() => {
+              try {
+                if (body.type === 'Json') {
+                  onChange({ ...body, content: JSON.stringify(JSON.parse(body.content), null, 2) });
+                } else if (body.type === 'GraphQL') {
+                  onChange({ ...body, variables: JSON.stringify(JSON.parse(body.variables), null, 2) });
+                }
+              } catch { /* invalid JSON, ignore */ }
+            }}
+          >
+            <svg className="w-3 h-3" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <path d="M3 3l-2 3 2 3M9 3l2 3-2 3M6 1l-1.5 10" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            Prettify
+          </button>
+        )}
       </div>
 
       {/* Content */}
@@ -68,8 +88,8 @@ export function BodyEditor({ body, onChange }: Props) {
           <CodeMirror
             value={body.content}
             height="100%"
-            theme={oneDark}
-            extensions={[json()]}
+            theme={editorTheme}
+            extensions={[...editorExtensions, json()]}
             onChange={(value) => onChange({ ...body, content: value })}
             className="h-full text-sm"
           />
@@ -89,7 +109,8 @@ export function BodyEditor({ body, onChange }: Props) {
             <CodeMirror
               value={body.content}
               height="100%"
-              theme={oneDark}
+              theme={editorTheme}
+              extensions={editorExtensions}
               onChange={(value) => onChange({ ...body, content: value })}
               className="flex-1 text-sm"
             />
@@ -113,8 +134,8 @@ export function BodyEditor({ body, onChange }: Props) {
                 <CodeMirror
                   value={body.query}
                   height="100%"
-                  theme={oneDark}
-                  extensions={[javascript()]}
+                  theme={editorTheme}
+                  extensions={[...editorExtensions, javascript()]}
                   onChange={(value) => onChange({ ...body, query: value })}
                   className="h-full text-sm"
                 />
@@ -124,8 +145,8 @@ export function BodyEditor({ body, onChange }: Props) {
                 <CodeMirror
                   value={body.variables}
                   height="100%"
-                  theme={oneDark}
-                  extensions={[json()]}
+                  theme={editorTheme}
+                  extensions={[...editorExtensions, json()]}
                   onChange={(value) => onChange({ ...body, variables: value })}
                   className="h-full text-sm"
                 />
