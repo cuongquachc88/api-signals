@@ -104,7 +104,8 @@ pub fn import_curl(curl_string: String) -> Result<APIRequest, String> {
         }
     }
 
-    // Split query string out of the URL into params
+    // Split query string out of the URL into params (the URL sent later is
+    // reassembled from params, so the query string must not stay in `url`)
     let mut params: Vec<KeyValue> = Vec::new();
     if let Some(q_idx) = url.find('?') {
         let query = url[q_idx + 1..].to_string();
@@ -116,6 +117,7 @@ pub fn import_curl(curl_string: String) -> Result<APIRequest, String> {
             };
             params.push(KeyValue::new(&key, &value));
         }
+        url.truncate(q_idx);
     }
 
     let body = if body_content.is_empty() {
@@ -771,7 +773,10 @@ mod tests {
     fn import_curl_splits_query_string_into_params() {
         let curl = "curl 'https://api.example.com/search?q=test&page=2'";
         let req = import_curl(curl.to_string()).unwrap();
-        assert_eq!(req.url, "https://api.example.com/search?q=test&page=2");
+        // The base URL must not retain the query string — it gets reassembled
+        // from `params` when the request is sent (see http.rs), so leaving it
+        // in `url` would duplicate every param on the wire.
+        assert_eq!(req.url, "https://api.example.com/search");
         assert_eq!(req.params.len(), 2);
         assert_eq!(req.params[0].key, "q");
         assert_eq!(req.params[0].value, "test");
