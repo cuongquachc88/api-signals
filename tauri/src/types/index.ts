@@ -96,6 +96,7 @@ export interface APIResponse {
   statusText: string;
   headers: KeyValue[];
   body: string;
+  isBase64: boolean;
   bodySize: number;
   timing: RequestTiming;
   cookies: Cookie[];

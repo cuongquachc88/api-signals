@@ -34,13 +34,31 @@ function isJson(body: string): boolean {
   try { JSON.parse(body); return true; } catch { return false; }
 }
 
+function base64ToBytes(base64: string): Uint8Array {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
+function guessFileName(contentType: string, contentDisposition: string): string {
+  const match = contentDisposition.match(/filename\*?=(?:UTF-8'')?"?([^";]+)"?/i);
+  if (match?.[1]) return decodeURIComponent(match[1]);
+  const ext = contentType.includes('pdf') ? 'pdf' : 'bin';
+  return `response.${ext}`;
+}
+
 export function ResponseViewer({ response, isLoading }: Props) {
   const [tab, setTab] = useState<ResponseTab>('Body');
   const [bodyMode, setBodyMode] = useState<BodyMode>('pretty');
+  const [downloadError, setDownloadError] = useState('');
 
   const TABS: ResponseTab[] = ['Body', 'Headers', 'Cookies', 'Timing'];
 
-  const looksLikeJson = useMemo(() => isJson(response.body), [response.body]);
+  const looksLikeJson = useMemo(
+    () => !response.isBase64 && isJson(response.body),
+    [response.body, response.isBase64]
+  );
   const formattedBody = useMemo(() => {
     if (looksLikeJson) {
       try {
@@ -55,6 +73,32 @@ export function ResponseViewer({ response, isLoading }: Props) {
   const contentType = response.headers.find(h =>
     h.key.toLowerCase() === 'content-type'
   )?.value ?? '';
+  const contentDisposition = response.headers.find(h =>
+    h.key.toLowerCase() === 'content-disposition'
+  )?.value ?? '';
+
+  const isPdf = response.isBase64 && contentType.toLowerCase().includes('application/pdf');
+  const pdfDataUrl = useMemo(() => {
+    if (!isPdf) return null;
+    return `data:application/pdf;base64,${response.body}`;
+  }, [isPdf, response.body]);
+
+  const handleDownload = async () => {
+    setDownloadError('');
+    try {
+      const { save } = await import('@tauri-apps/plugin-dialog');
+      const { writeFile } = await import('@tauri-apps/plugin-fs');
+      const suggestedName = guessFileName(contentType, contentDisposition);
+      const path = await save({ defaultPath: suggestedName });
+      if (!path) return;
+      const bytes = response.isBase64
+        ? base64ToBytes(response.body)
+        : new TextEncoder().encode(response.body);
+      await writeFile(path, bytes);
+    } catch (e: any) {
+      setDownloadError(`Download failed: ${e?.message ?? e}`);
+    }
+  };
 
   return (
     <div className="flex flex-col h-full bg-gray-900">
@@ -70,12 +114,22 @@ export function ResponseViewer({ response, isLoading }: Props) {
           {formatBytes(response.bodySize)}
         </span>
         <div className="flex-1" />
-        <button
-          onClick={() => navigator.clipboard.writeText(response.body)}
-          className="text-xs text-gray-500 hover:text-gray-300 px-2 py-0.5 rounded hover:bg-gray-800"
-        >
-          Copy
-        </button>
+        {downloadError && <span className="text-xs text-red-400">{downloadError}</span>}
+        {response.isBase64 ? (
+          <button
+            onClick={handleDownload}
+            className="text-xs text-gray-500 hover:text-gray-300 px-2 py-0.5 rounded hover:bg-gray-800"
+          >
+            Download
+          </button>
+        ) : (
+          <button
+            onClick={() => navigator.clipboard.writeText(response.body)}
+            className="text-xs text-gray-500 hover:text-gray-300 px-2 py-0.5 rounded hover:bg-gray-800"
+          >
+            Copy
+          </button>
+        )}
       </div>
 
       {/* Tabs */}
@@ -111,38 +165,52 @@ export function ResponseViewer({ response, isLoading }: Props) {
         {tab === 'Body' && (
           <div className="flex flex-col h-full">
             {/* Body mode selector */}
-            <div className="flex items-center gap-1 px-2 py-1 border-b border-gray-800 shrink-0">
-              {(['pretty', 'raw'] as BodyMode[]).map(m => (
-                <button
-                  key={m}
-                  onClick={() => setBodyMode(m)}
-                  className={clsx(
-                    'px-2 py-0.5 text-xs rounded',
-                    bodyMode === m ? 'bg-gray-700 text-white' : 'text-gray-500 hover:text-gray-300'
-                  )}
-                >
-                  {m.charAt(0).toUpperCase() + m.slice(1)}
-                </button>
-              ))}
-              {looksLikeJson && (
-                <button
-                  onClick={() => setBodyMode('preview')}
-                  className={clsx(
-                    'px-2 py-0.5 text-xs rounded',
-                    bodyMode === 'preview' ? 'bg-gray-700 text-white' : 'text-gray-500 hover:text-gray-300'
-                  )}
-                >
-                  Tree
-                </button>
-              )}
-              {response.status === 0 && (
-                <span className="ml-2 text-red-400 text-xs">Request failed</span>
-              )}
-            </div>
+            {!response.isBase64 && (
+              <div className="flex items-center gap-1 px-2 py-1 border-b border-gray-800 shrink-0">
+                {(['pretty', 'raw'] as BodyMode[]).map(m => (
+                  <button
+                    key={m}
+                    onClick={() => setBodyMode(m)}
+                    className={clsx(
+                      'px-2 py-0.5 text-xs rounded',
+                      bodyMode === m ? 'bg-gray-700 text-white' : 'text-gray-500 hover:text-gray-300'
+                    )}
+                  >
+                    {m.charAt(0).toUpperCase() + m.slice(1)}
+                  </button>
+                ))}
+                {looksLikeJson && (
+                  <button
+                    onClick={() => setBodyMode('preview')}
+                    className={clsx(
+                      'px-2 py-0.5 text-xs rounded',
+                      bodyMode === 'preview' ? 'bg-gray-700 text-white' : 'text-gray-500 hover:text-gray-300'
+                    )}
+                  >
+                    Tree
+                  </button>
+                )}
+                {response.status === 0 && (
+                  <span className="ml-2 text-red-400 text-xs">Request failed</span>
+                )}
+              </div>
+            )}
 
             {/* Body content */}
             <div className="flex-1 overflow-hidden">
-              {bodyMode === 'preview' && looksLikeJson ? (
+              {isPdf && pdfDataUrl ? (
+                <embed src={pdfDataUrl} type="application/pdf" className="w-full h-full" />
+              ) : response.isBase64 ? (
+                <div className="flex flex-col items-center justify-center h-full gap-3">
+                  <p className="text-gray-500 text-sm">Binary response ({formatBytes(response.bodySize)})</p>
+                  <button
+                    onClick={handleDownload}
+                    className="px-3 py-1.5 text-sm rounded bg-blue-600 hover:bg-blue-700 text-white"
+                  >
+                    Download
+                  </button>
+                </div>
+              ) : bodyMode === 'preview' && looksLikeJson ? (
                 <JsonTreeView json={response.body} />
               ) : bodyMode === 'pretty' && looksLikeJson ? (
                 <CodeMirror

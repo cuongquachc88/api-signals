@@ -89,6 +89,7 @@ export function useRequest() {
         statusText: 'Error',
         headers: [],
         body: String(err),
+        isBase64: false,
         bodySize: 0,
         timing: { dnsMs: 0, connectMs: 0, tlsMs: 0, sendMs: 0, waitMs: 0, receiveMs: 0, totalMs: 0 },
         cookies: [],

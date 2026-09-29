@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use std::time::Instant;
 use tauri::State;
 use crate::db::DbState;
+use base64::Engine;
 
 fn interpolate_variables(text: &str, variables: &HashMap<String, String>) -> String {
     let mut result = text.to_string();
@@ -214,7 +215,7 @@ pub async fn execute_request(
 
     let body_bytes = response.bytes().await.map_err(|e| e.to_string())?;
     let body_size = body_bytes.len() as u64;
-    let body = String::from_utf8_lossy(&body_bytes).to_string();
+    let (body, is_base64) = encode_response_body(&body_bytes);
 
     // Approximate timing breakdown (real DNS/TLS timing needs lower-level hooks)
     let wait_portion = total_elapsed * 0.7;
@@ -235,6 +236,7 @@ pub async fn execute_request(
         status_text,
         headers: resp_headers,
         body,
+        is_base64,
         body_size,
         timing,
         cookies,
@@ -275,4 +277,43 @@ fn parse_set_cookie(cookie_str: &str) -> Cookie {
     }
 
     Cookie { name, value, domain, path, expires, http_only, secure }
+}
+
+/// Encodes a response body for transport: valid UTF-8 text passes through
+/// as-is, anything else (binary content like PDFs, images, etc.) is
+/// base64-encoded so raw bytes survive the JSON round-trip intact.
+fn encode_response_body(bytes: &[u8]) -> (String, bool) {
+    match std::str::from_utf8(bytes) {
+        Ok(text) => (text.to_string(), false),
+        Err(_) => (base64::engine::general_purpose::STANDARD.encode(bytes), true),
+    }
+}
+
+#[cfg(test)]
+mod body_encoding_tests {
+    use super::*;
+
+    #[test]
+    fn utf8_text_passes_through_unencoded() {
+        let (body, is_base64) = encode_response_body(b"{\"ok\":true}");
+        assert_eq!(body, "{\"ok\":true}");
+        assert!(!is_base64);
+    }
+
+    #[test]
+    fn binary_bytes_are_base64_encoded() {
+        // %PDF header plus a byte sequence that is not valid UTF-8
+        let bytes: &[u8] = &[0x25, 0x50, 0x44, 0x46, 0xFF, 0xFE, 0x00];
+        let (body, is_base64) = encode_response_body(bytes);
+        assert!(is_base64);
+        let decoded = base64::engine::general_purpose::STANDARD.decode(&body).unwrap();
+        assert_eq!(decoded, bytes);
+    }
+
+    #[test]
+    fn empty_body_is_treated_as_text() {
+        let (body, is_base64) = encode_response_body(b"");
+        assert_eq!(body, "");
+        assert!(!is_base64);
+    }
 }

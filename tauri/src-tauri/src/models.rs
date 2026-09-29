@@ -184,6 +184,9 @@ pub struct APIResponse {
     pub status_text: String,
     pub headers: Vec<KeyValue>,
     pub body: String,
+    /// True when `body` holds base64-encoded raw bytes instead of UTF-8 text
+    /// (set for non-text content types, or text that isn't valid UTF-8).
+    pub is_base64: bool,
     pub body_size: u64,
     pub timing: RequestTiming,
     pub cookies: Vec<Cookie>,

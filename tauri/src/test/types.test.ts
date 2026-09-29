@@ -174,7 +174,7 @@ describe('APIResponse shape', () => {
       status: 200, statusText: 'OK',
       headers: [{ id: '1', key: 'content-type', value: 'application/json', enabled: true }],
       body: '{"ok":true}',
-      bodySize: 11,
+      isBase64: false, bodySize: 11,
       timing,
       cookies: [],
     };

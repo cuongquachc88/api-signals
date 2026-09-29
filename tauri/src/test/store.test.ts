@@ -31,7 +31,7 @@ const makeEnv = (id = 'env-1', wsId = 'ws-1'): Environment => ({
 const makeResponse = (): APIResponse => ({
   status: 200, statusText: 'OK',
   headers: [{ id: 'h1', key: 'content-type', value: 'application/json', enabled: true }],
-  body: '{"ok":true}', bodySize: 11,
+  body: '{"ok":true}', isBase64: false, bodySize: 11,
   timing: { dnsMs: 5, connectMs: 15, tlsMs: 20, sendMs: 3, waitMs: 80, receiveMs: 10, totalMs: 133 },
   cookies: [],
 });

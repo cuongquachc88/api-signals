@@ -356,7 +356,7 @@ describe('HistoryEntry shape', () => {
     };
     const resp: APIResponse = {
       status: 201, statusText: 'Created', headers: [], body: '{"id":1}',
-      bodySize: 8, timing: { dnsMs: 0, connectMs: 10, tlsMs: 0, sendMs: 2, waitMs: 50, receiveMs: 5, totalMs: 67 },
+      isBase64: false, bodySize: 8, timing: { dnsMs: 0, connectMs: 10, tlsMs: 0, sendMs: 2, waitMs: 50, receiveMs: 5, totalMs: 67 },
       cookies: [],
     };
     const entry = {
