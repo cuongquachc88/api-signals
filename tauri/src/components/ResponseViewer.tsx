@@ -118,9 +118,13 @@ export function ResponseViewer({ response, isLoading }: Props) {
         {response.isBase64 ? (
           <button
             onClick={handleDownload}
-            className="text-xs text-gray-500 hover:text-gray-300 px-2 py-0.5 rounded hover:bg-gray-800"
+            title="Download"
+            className="text-gray-500 hover:text-gray-300 p-1 rounded hover:bg-gray-800"
           >
-            Download
+            <svg className="w-3.5 h-3.5" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <path d="M7 1v8m0 0L4 6m3 3l3-3" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M2 10v2a1 1 0 001 1h8a1 1 0 001-1v-2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
           </button>
         ) : (
           <button
@@ -205,8 +209,12 @@ export function ResponseViewer({ response, isLoading }: Props) {
                   <p className="text-gray-500 text-sm">Binary response ({formatBytes(response.bodySize)})</p>
                   <button
                     onClick={handleDownload}
-                    className="px-3 py-1.5 text-sm rounded bg-blue-600 hover:bg-blue-700 text-white"
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded bg-blue-600 hover:bg-blue-700 text-white"
                   >
+                    <svg className="w-3.5 h-3.5" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5">
+                      <path d="M7 1v8m0 0L4 6m3 3l3-3" strokeLinecap="round" strokeLinejoin="round" />
+                      <path d="M2 10v2a1 1 0 001 1h8a1 1 0 001-1v-2" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
                     Download
                   </button>
                 </div>
