@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Documentation
+    url: https://github.com/apisignals/api-signals/blob/main/docs/README.md
+    about: Build, architecture, and contributing guides
+  - name: Security
+    url: https://github.com/apisignals/api-signals/blob/main/SECURITY.md
+    about: Report vulnerabilities privately

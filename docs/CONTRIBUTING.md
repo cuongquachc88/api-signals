@@ -1,67 +1,83 @@
 # Contributing
 
-Thank you for your interest in contributing to API Signals!
+Thank you for contributing to API Signals.
 
-## Getting Started
+## Code of conduct
+
+Participation is governed by the [Code of Conduct](../CODE_OF_CONDUCT.md). Be respectful and constructive.
+
+## Getting started
 
 ### Requirements
 
-- macOS 14+
-- Xcode 16+ or Swift 6.0+
-- Git
+| Tool | Notes |
+| --- | --- |
+| Node.js 20+ | Frontend build and Tauri CLI |
+| Rust 1.77+ | Backend and Tauri shell |
+| macOS or Windows | Linux is supported for tests only (no desktop bundle in CI matrix) |
 
-### Build
+Platform-specific tooling: [BUILD.md](./BUILD.md).
 
-```bash
-cd macOS
-swift build
-```
-
-### Run Tests
+### Setup
 
 ```bash
-cd macOS
-swift test
+git clone https://github.com/apisignals/api-signals.git
+cd api-signals/tauri
+npm ci
+npm run tauri dev
 ```
 
-> Note: `swift test` requires full Xcode installation to access XCTest.
+### Tests
 
-## Project Structure
+```bash
+cd tauri
+npm test
+cd src-tauri && cargo test
+```
 
-- `macOS/` — Swift/SwiftUI app
-- `windows/` — WinUI 3 app (future)
-- `shared/` — Shared specs and JSON schemas
-- `docs/` — Documentation
-- `tests/` — Cross-platform test utilities
+CI runs the same checks on every pull request — see [`.github/workflows/ci.yml`](../.github/workflows/ci.yml).
 
-## Code Style
-
-- Swift 6 strict concurrency enabled.
-- Prefer structs for value types.
-- Use `async/await` for asynchronous code.
-- Domain layer must remain pure Swift with no external dependencies.
-- All public entities should be `Sendable`.
-
-## Pull Request Process
-
-1. Open an issue first for major changes.
-2. Fork and create a feature branch.
-3. Write tests for new domain logic.
-4. Ensure `swift build` passes.
-5. Update relevant documentation.
-6. Submit PR with clear description.
-
-## Commit Messages
-
-Use conventional commits:
+## Project structure
 
 ```
-feat: add OAuth2 auth handler
-fix: resolve variable interpolation in headers
-docs: update API model documentation
-test: add history repository tests
+tauri/
+├── src/              # React UI (TypeScript, Zustand, CodeMirror)
+├── src-tauri/src/    # Tauri commands, HTTP, SQLite, import/export
+└── src-tauri/        # Tauri config, icons, Capabilities
+docs/                 # Documentation (you are here)
+macOS/                # Legacy Swift app — avoid unless explicitly scoped
 ```
+
+## Pull request process
+
+1. Open an issue for large features or breaking changes (optional for small fixes).
+2. Fork, branch from `main`, keep commits focused.
+3. Update docs when behavior or build steps change.
+4. Ensure tests pass locally.
+5. Open a PR with:
+   - **What** changed
+   - **Why** it is needed
+   - **How** you tested (OS, commands)
+
+Use [Conventional Commits](https://www.conventionalcommits.org/) when possible:
+
+```text
+feat: add HAR export for single request
+fix: normalize Content-Type on form uploads
+docs: document Windows WebView2 requirement
+test: cover Postman import edge cases
+```
+
+## Code style
+
+- **TypeScript / React** — match existing patterns in `tauri/src/`; run `npm run build` for typecheck.
+- **Rust** — idiomatic Rust 2021; keep Tauri commands thin and test pure logic where practical.
+- **Scope** — prefer small PRs; avoid unrelated refactors.
+
+## Security
+
+Report vulnerabilities privately — see [SECURITY.md](../SECURITY.md).
 
 ## License
 
-By contributing, you agree that your contributions will be licensed under the MIT License.
+By contributing, you agree that your contributions are licensed under the [MIT License](../LICENSE).

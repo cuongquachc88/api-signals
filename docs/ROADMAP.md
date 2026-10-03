@@ -1,66 +1,46 @@
 # Roadmap
 
-## Phase 1: MVP (Weeks 1-6)
-- [x] Project skeleton and architecture
-- [x] Basic HTTP request (GET, POST, PUT, DELETE, PATCH)
-- [x] Headers, query params, body editor
-- [x] Response viewer (raw, JSON, headers)
-- [x] Collections CRUD
-- [x] Environments & variables
-- [x] History
-- [x] Bearer/Basic/API Key auth
-- [x] Native file export/import
+Cross-platform delivery (Tauri on **macOS** and **Windows**) is the current focus. Items below mix shipped capabilities and planned work.
 
-## Phase 2: Power User (Weeks 7-10)
+## Platform
+
+- [x] Tauri 2 app (React + Rust)
+- [x] macOS universal builds (CI + release)
+- [x] Windows MSI / NSIS builds (CI + release)
+- [ ] Linux packages (AppImage/deb) — not in CI yet
+- [ ] Auto-update channel
+
+## Core HTTP client
+
+- [x] Methods, headers, query, body, auth
+- [x] Response viewer (JSON, headers, timing)
+- [x] cURL import/export
 - [x] Postman Collection v2.1 import/export
-- [x] cURL import
-- [x] Pre/post scripts (JavaScriptCore)
-- [x] Tests/assertions
-- [x] OAuth 2.0 / OAuth 1.0
-- [x] Cookies manager
-- [ ] Image/PDF preview
-- [x] Code snippet generator
-
-## Phase 3: Advanced (Weeks 11-14)
-- [x] WebSocket client
-- [x] Server-Sent Events (SSE)
+- [x] OpenAPI and HAR import
+- [x] WebSocket and SSE
+- [x] GraphQL editor with introspection
 - [ ] Proxy support
-- [ ] SSL client certificates
-- [x] Collection runner
-- [ ] Advanced request settings
+- [ ] Client TLS certificates
 
-## Phase 4: Ecosystem (Weeks 15-18)
-- [x] OpenAPI 3.0 import/export
-- [x] HAR import/export
-- [x] Workspaces
-- [ ] Team sharing via file
-- [ ] Request diffs
+## Workspace & UX
 
-## Phase 5: GraphQL (added)
-- [x] GraphQL body editor (query + variables)
-- [x] Schema fetching via introspection query
-- [x] Syntax highlighting (keywords, directives, fields, variables, types)
-- [x] Field autocomplete from fetched schema
-- [ ] Schema explorer sidebar panel
-- [ ] Query formatting / prettify
+- [x] Workspaces, collections, environments, history
+- [x] Multi-tab editor with dirty indicator and ⌘S save
+- [x] Command palette
+- [x] Mock server
+- [x] Collection documentation (Markdown)
+- [ ] Image/PDF response preview
+- [ ] Team sharing via file sync
 
-## Phase 6: UX Polish (added)
-- [x] Multi-tab support with inline rename (double-click)
-- [x] Dirty indicator — pulsing green dot on unsaved tabs
-- [x] ⌘S explicit save (no auto-save on keystroke)
-- [x] Tab badge counts (Params N, Headers N, Auth, Body)
-- [x] Resizable sidebar (drag to resize, 200–400pt)
-- [x] URL syntax highlighting (scheme, host, path, query, {{variables}})
-- [x] Response timing waterfall (DNS, Connect, TLS, TTFB, Download breakdown)
-- [x] Command palette ⌘K / ⌘P (requests + actions)
-- [x] JSON tree with click-to-copy JSON paths
-- [x] Request chaining chain-snippet helper in Scripts tab
-- [x] Response diff tool (compare current vs history)
-- [x] Collection documentation (Markdown editor + WKWebView preview)
-- [x] Mock server (local NWListener stubs, per-route method/path/status/body)
+## Quality & community
 
-## Ongoing
-- [ ] Performance optimization
-- [x] Documentation
-- [ ] Community contributions
-- [ ] Bug fixes
+- [x] Frontend unit tests (Vitest)
+- [x] Rust unit tests (import/export, HTTP helpers)
+- [x] CI: test + macOS/Windows build on `main`
+- [x] Release workflow on version tags
+- [ ] Expanded E2E tests
+- [ ] Contributor onboarding video / wiki tour
+
+## Legacy macOS (Swift)
+
+The Swift/SwiftUI app in `macOS/` remains in the repo for reference. New features should land in `tauri/` unless explicitly maintaining the Swift stack.

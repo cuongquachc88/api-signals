@@ -56,3 +56,10 @@ artifacts/
 # Temporary
 *.tmp
 *.log
+
+# Tauri / Node
+tauri/node_modules/
+tauri/dist/
+
+# Rust
+tauri/src-tauri/target/

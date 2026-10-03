@@ -1,119 +1,92 @@
 # Architecture
 
-## Overview
+API Signals is a **Tauri 2** desktop application: a React frontend talks to a Rust backend over Tauri `invoke` commands. Data lives in **SQLite** under the OS app data directory.
 
-API Signals follows Clean Architecture + MVVM on the presentation layer.
+## High-level diagram
 
 ```
-┌─────────────────────────────────────────┐
-│  Presentation Layer (SwiftUI/AppKit)    │
-│  - Views, ViewModels, Routing             │
-├─────────────────────────────────────────┤
-│  Domain Layer (Pure Swift)                │
-│  - Entities, Use Cases, Repository Ifaces │
-├─────────────────────────────────────────┤
-│  Data Layer                               │
-│  - SQLite repositories (GRDB.swift)       │
-│  - File exporters (JSON, OpenAPI, HAR)    │
-├─────────────────────────────────────────┤
-│  Infrastructure Layer                     │
-│  - Network engine (URLSession)            │
-│  - JavaScriptCore runner                  │
-│  - Auth handlers                          │
-│  - Proxy / Certificate manager            │
-└─────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│  Webview (React 18 + Vite + TypeScript)                      │
+│  Zustand store · TanStack Query · CodeMirror editors         │
+├─────────────────────────────────────────────────────────────┤
+│  Tauri IPC (invoke / events)                                 │
+├─────────────────────────────────────────────────────────────┤
+│  Rust backend (tauri/src-tauri)                              │
+│  commands/* · models · db (rusqlite)                         │
+│  reqwest HTTP · axum mock server                             │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-## Modules
+## Frontend (`tauri/src/`)
 
-| Module | Responsibility | Dependencies |
-|---|---|---|
-| `APISignalsCore` | Entities, repository protocols, domain errors | None |
-| `APISignalsNetwork` | URLSession execution, request building, response mapping | Core |
-| `APISignalsPersistence` | GRDB migrations, SQLite repositories, file export | Core, GRDB |
-| `APISignalsScripting` | JavaScriptCore pre/post request scripts | Core |
-| `APISignalsUI` | SwiftUI views and view models | Core, Network, Persistence |
-| `APISignalsApp` | App entry, DI container, lifecycle | All above |
+| Area | Role |
+| --- | --- |
+| `store/appStore.ts` | Workspaces, tabs, collections, UI state |
+| `hooks/useRequest.ts` | Send requests via Tauri HTTP command |
+| `components/*` | Request editor, response viewer, sidebar, tabs |
+| `types/` | Shared TypeScript models aligned with Rust serde types |
 
-## Dependency Rule
+The UI is offline-first: persistence goes through Rust commands, not browser storage.
 
-- Domain layer does not depend on any other layer.
-- Data and infrastructure layers depend on domain layer via protocols.
-- UI layer depends on domain and concrete implementations.
+## Backend (`tauri/src-tauri/src/`)
 
-## Concurrency
+| Module | Role |
+| --- | --- |
+| `db.rs` | Schema migrations, SQLite connection |
+| `models.rs` | Serde structs shared with the frontend |
+| `commands/workspace.rs` | Workspace CRUD |
+| `commands/collection.rs` | Collections and ordering |
+| `commands/request.rs` | Saved requests |
+| `commands/environment.rs` | Environments and active env |
+| `commands/history.rs` | Request history |
+| `commands/http.rs` | Outbound HTTP execution (reqwest) |
+| `commands/import_export.rs` | cURL, Postman, HAR, OpenAPI |
+| `commands/mock_server.rs` | Local stub server (axum) |
+| `commands/snippet.rs` | Code snippet generation |
+| `commands/settings.rs` | App settings |
 
-- Domain entities are `Sendable` and `Codable`.
-- Network engine uses Swift actors for mutable state.
-- Repositories use `async/await`.
-- ViewModels use `@MainActor` for UI updates.
+On startup, `lib.rs` initializes the database in the Tauri app data directory and registers all command handlers.
 
-## Variable Resolution
+## Data storage
+
+- **Engine:** SQLite via `rusqlite` (bundled).
+- **Location:** platform app data dir (`app.path().app_data_dir()`), file `api_signals.db`.
+- **Export:** JSON / Postman / OpenAPI / HAR through import-export commands.
+
+## HTTP execution
+
+`commands/http::execute_request` builds a reqwest request from the saved request model (method, URL, headers, body, auth), executes it asynchronously, and returns status, headers, timing, and body to the UI.
+
+## Variable resolution
 
 Scope precedence (highest to lowest):
-1. Request variables
-2. Collection variables
-3. Environment variables
-4. Global variables
+
+1. Request variables  
+2. Collection variables  
+3. Environment variables  
+4. Global variables  
 
 Syntax: `{{variableName}}`
 
 ## Scripting
 
-Postman-compatible `pm.*` API subset:
-- `pm.environment.get/set`
-- `pm.variables.get/set`
-- `pm.globals.get/set`
-- `pm.request.*`
-- `pm.response.*`
-- `pm.test(name, fn)`
-- `pm.expect(value)`
+Postman-compatible `pm.*` subset for pre-request and test scripts (see product README for supported APIs).
 
-## GraphQL
+## Mock server
 
-Schema fetching and autocomplete are built into the GraphQL body editor:
+Routes are stored in SQLite; when started, an axum server listens on a configurable localhost port and returns configured status/body per route.
 
-- `GraphQLSchema` (Core) — type-safe model for types, fields, arguments, enums, input types.
-- `GraphQLIntrospection` (Core) — standard introspection query string + JSON parser that unwraps `NON_NULL`/`LIST` wrappers to resolve leaf type names.
-- `GraphQLSchemaFetcher` (Network) — Swift actor that POSTs the introspection query to the endpoint URL; caches results per URL; `invalidate(endpoint:)` forces a refresh.
-- `GraphQLQueryEditor` (UI) — `NSTextView`-backed editor with syntax highlighting (keywords, directives, fields, variables, types, comments) and `NSTextViewDelegate` autocomplete using the fetched schema for context-aware field/type suggestions.
+## Legacy Swift app
 
-## Save Model
+The [`../macOS/`](../macOS/) package implemented a similar feature set with Clean Architecture + GRDB. The Tauri app is the **active** release target; Swift modules are listed here only for historical comparison:
 
-Requests are **not** auto-saved on every keystroke. Changes set a dirty flag (`isDirty`) which shows as a pulsing green dot on the tab. **⌘S** persists the request to SQLite and clears the dirty state. Sending a request also triggers a save.
+| Swift module | Tauri equivalent |
+| --- | --- |
+| APISignalsPersistence | `db.rs` + collection/request commands |
+| APISignalsNetwork | `commands/http.rs` |
+| APISignalsUI | `tauri/src/components/*` |
 
-## Tab Management
+## Concurrency
 
-- `AppState.openTabs` — ordered list of open request tabs.
-- `AppState.dirtyTabIds: Set<UUID>` — tracks which tabs have unsaved changes.
-- Double-clicking a tab label opens an inline `TextField` for renaming; `Return` commits, `Escape` cancels.
-- Tab bar shows badge counts for Params, Headers, Auth, and Body when non-empty.
-
-## URL Highlighting
-
-`HighlightedURLField` — NSViewRepresentable wrapping NSTextField with NSAttributedString coloring. Colors: scheme (tertiary), host (primary), path (secondary), query (accent blue), `{{variables}}` (orange). Parses via `URLComponents` on every change; falls back to plain text for unparseable URLs.
-
-## Response Timing Waterfall
-
-`URLSessionNetworkEngine` now uses a per-request `URLSession` with a `MetricsDelegate` (`URLSessionTaskDelegate`) to capture `URLSessionTaskMetrics`. DNS, connect, TLS, TTFB, and download intervals are extracted from the last `URLSessionTaskTransactionMetrics`. The Timing tab in `ResponseView` renders them as proportional horizontal bars via `TimingWaterfallView`.
-
-## Command Palette
-
-`QuickOpenViewDS` (⌘K / ⌘P) shows interleaved request rows and `PaletteAction` items. Request items open tabs; action items dispatch to `AppState` or post `Notification.Name` triggers.
-
-## JSON Tree View
-
-`JSONTreeView` renders `Data` as a recursive SwiftUI tree using `JSONSerialization`. Each node has a click-to-copy button that writes the JSON path (e.g. `$.user.name`) to the system pasteboard.
-
-## Response Diff
-
-`LineDiff` (Core) — LCS-based line diff producing `[DiffLine]` (unchanged/added/removed). `ResponseDiffView` lets the user pick a history entry and view a side-by-side colored diff of response bodies.
-
-## Collection Documentation
-
-`Collection.documentation: String?` stored in SQLite (migration `v2`). `CollectionDocView` provides a split markdown editor (NSTextView) + WKWebView preview. Accessible via the collection's `⋯` menu → Documentation…
-
-## Mock Server
-
-`MockServer` (Network) — `@MainActor ObservableObject` that wraps an `NWListener` on a configurable localhost port. Routes (`MockRoute` in Core) match by HTTP method and exact or wildcard path. Responses include CORS headers. UI: `MockServerView` sheet launched from the toolbar server.rack icon.
-
+- Rust: Tokio for async HTTP; `Mutex` around SQLite connection in Tauri state.
+- Frontend: async invoke calls; React state updates on completion.
